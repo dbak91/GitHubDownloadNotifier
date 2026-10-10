@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">GithubDownloadNotifier</string>
+    <string name="config_title">GitHub download monitor</string>
+    <string name="repo_owner_hint">Repository owner (e.g. dotnet)</string>
+    <string name="repo_name_hint">Repository name (e.g. runtime)</string>
+    <string name="interval_hint">Check interval in minutes</string>
+    <string name="save_settings_button">Save settings</string>
+    <string name="service_toggle_label">Enable background monitoring</string>
+    <string name="service_running">Service running</string>
+    <string name="service_stopped">Service stopped</string>
+    <string name="settings_saved">Settings saved</string>
+    <string name="repo_required_message">Repository owner and name are required.</string>
+    <string name="interval_invalid_message">Enter a valid interval in minutes.</string>
+    <string name="notification_permission_required">Notification permission is required to send alerts.</string>
+    <string name="monitoring_notification_title">GitHub download monitor active</string>
+</resources>
