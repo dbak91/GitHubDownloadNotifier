@@ -2,7 +2,10 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true">
+    android:fillViewport="true"
+    android:fitsSystemWindows="true"
+    android:clipToPadding="false"
+    android:paddingTop="20dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -16,32 +19,73 @@
             android:text="@string/config_title"
             android:textAppearance="@android:style/TextAppearance.Material.Medium" />
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="@string/repo_owner_label" />
+
         <EditText
             android:id="@+id/repoOwnerEditText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="6dp"
             android:hint="@string/repo_owner_hint"
             android:inputType="text"
             android:maxLines="1" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/repo_name_label" />
 
         <EditText
             android:id="@+id/repoNameEditText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="6dp"
             android:hint="@string/repo_name_hint"
             android:inputType="text"
             android:maxLines="1" />
 
-        <EditText
-            android:id="@+id/intervalEditText"
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:hint="@string/interval_hint"
+            android:text="@string/interval_label" />
+
+        <Spinner
+            android:id="@+id/intervalSpinner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp" />
+
+        <EditText
+            android:id="@+id/customIntervalEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:hint="@string/custom_interval_hint"
             android:inputType="number"
-            android:maxLines="1" />
+            android:maxLines="1"
+            android:visibility="gone" />
+
+        <Switch
+            android:id="@+id/allReleasesSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:checked="true"
+            android:text="@string/release_scope_all" />
+
+        <Switch
+            android:id="@+id/alwaysNotifySwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:checked="false"
+            android:text="@string/notify_updates_only" />
 
         <Button
             android:id="@+id/saveButton"
@@ -49,6 +93,13 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:text="@string/save_settings_button" />
+
+        <Button
+            android:id="@+id/testNotificationButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="@string/test_notification_button" />
 
         <Switch
             android:id="@+id/serviceSwitch"

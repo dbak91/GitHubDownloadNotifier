@@ -13,6 +13,8 @@ public class GitHubDownloadCheckService : Service
     public const string KeyOwner = "repo_owner";
     public const string KeyRepo = "repo_name";
     public const string KeyIntervalMinutes = "check_interval_minutes";
+    public const string KeyAllReleases = "all_releases";
+    public const string KeyAlwaysNotify = "always_notify";
 
     private const string LastTotalPrefix = "last_total_";
     private const int ForegroundNotificationId = 1001;
@@ -55,6 +57,8 @@ public class GitHubDownloadCheckService : Service
             var owner = preferences?.GetString(KeyOwner, string.Empty)?.Trim() ?? string.Empty;
             var repo = preferences?.GetString(KeyRepo, string.Empty)?.Trim() ?? string.Empty;
             var intervalMinutes = preferences?.GetInt(KeyIntervalMinutes, 60) ?? 60;
+            var allReleases = preferences?.GetBoolean(KeyAllReleases, true) ?? true;
+            var alwaysNotify = preferences?.GetBoolean(KeyAlwaysNotify, false) ?? false;
 
             if (intervalMinutes <= 0)
             {
@@ -66,10 +70,10 @@ public class GitHubDownloadCheckService : Service
                 var repoDisplay = $"{owner}/{repo}";
                 UpdateForegroundStatus($"Checking {repoDisplay} every {intervalMinutes} minute(s)");
 
-                var currentTotal = await TryGetLatestReleaseDownloadTotalAsync(owner, repo, cancellationToken);
+                var currentTotal = await TryGetReleaseDownloadTotalAsync(owner, repo, allReleases, cancellationToken);
                 if (currentTotal.HasValue)
                 {
-                    ProcessDownloadTotal(preferences!, owner, repo, currentTotal.Value, intervalMinutes);
+                    ProcessDownloadTotal(preferences!, owner, repo, allReleases, alwaysNotify, currentTotal.Value, intervalMinutes);
                 }
             }
 
@@ -84,31 +88,32 @@ public class GitHubDownloadCheckService : Service
         }
     }
 
-    private void ProcessDownloadTotal(ISharedPreferences preferences, string owner, string repo, int currentTotal, int intervalMinutes)
+    private void ProcessDownloadTotal(ISharedPreferences preferences, string owner, string repo, bool allReleases, bool alwaysNotify, int currentTotal, int intervalMinutes)
     {
-        var key = BuildLastTotalKey(owner, repo);
+        var key = BuildLastTotalKey(owner, repo, allReleases);
         var hasPrevious = preferences.Contains(key);
         var previousTotal = preferences.GetInt(key, currentTotal);
+        var delta = currentTotal - previousTotal;
 
-        if (hasPrevious && currentTotal > previousTotal)
+        if (alwaysNotify || (hasPrevious && delta > 0))
         {
-            var delta = currentTotal - previousTotal;
-            SendUpdateNotification(owner, repo, delta, currentTotal, intervalMinutes);
+            SendUpdateNotification(owner, repo, hasPrevious ? delta : null, currentTotal, intervalMinutes);
         }
 
         preferences.Edit()?.PutInt(key, currentTotal)?.Apply();
     }
 
-    private static string BuildLastTotalKey(string owner, string repo)
-        => LastTotalPrefix + owner.ToLowerInvariant() + "_" + repo.ToLowerInvariant();
+    private static string BuildLastTotalKey(string owner, string repo, bool allReleases)
+        => LastTotalPrefix + (allReleases ? "all_" : "latest_") + owner.ToLowerInvariant() + "_" + repo.ToLowerInvariant();
 
-    private async Task<int?> TryGetLatestReleaseDownloadTotalAsync(string owner, string repo, CancellationToken cancellationToken)
+    private async Task<int?> TryGetReleaseDownloadTotalAsync(string owner, string repo, bool allReleases, CancellationToken cancellationToken)
     {
         using var httpClient = new HttpClient();
         httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GithubDownloadNotifier", "1.0"));
         httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
 
-        var requestUri = $"https://api.github.com/repos/{Uri.EscapeDataString(owner)}/{Uri.EscapeDataString(repo)}/releases/latest";
+        var releasePath = allReleases ? "releases?per_page=100" : "releases/latest";
+        var requestUri = $"https://api.github.com/repos/{Uri.EscapeDataString(owner)}/{Uri.EscapeDataString(repo)}/{releasePath}";
         using var response = await httpClient.GetAsync(requestUri, cancellationToken);
 
         if (!response.IsSuccessStatusCode)
@@ -119,7 +124,23 @@ public class GitHubDownloadCheckService : Service
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
 
-        if (!document.RootElement.TryGetProperty("assets", out var assetsElement) || assetsElement.ValueKind != JsonValueKind.Array)
+        if (document.RootElement.ValueKind != JsonValueKind.Array)
+        {
+            return SumReleaseAssetDownloads(document.RootElement);
+        }
+
+        var total = 0;
+        foreach (var release in document.RootElement.EnumerateArray())
+        {
+            total += SumReleaseAssetDownloads(release);
+        }
+
+        return total;
+    }
+
+    private static int SumReleaseAssetDownloads(JsonElement release)
+    {
+        if (!release.TryGetProperty("assets", out var assetsElement) || assetsElement.ValueKind != JsonValueKind.Array)
         {
             return 0;
         }
@@ -194,9 +215,15 @@ public class GitHubDownloadCheckService : Service
         manager?.Notify(ForegroundNotificationId, notification);
     }
 
-    private void SendUpdateNotification(string owner, string repo, int delta, int currentTotal, int intervalMinutes)
+    private void SendUpdateNotification(string owner, string repo, int? delta, int currentTotal, int intervalMinutes)
     {
-        var message = $"{delta} new downloads in past {intervalMinutes} minute(s) ({currentTotal} total)";
+        var message = delta switch
+        {
+            > 0 => $"{delta} new downloads in past {intervalMinutes} minute(s) ({currentTotal} total)",
+            0 => $"No new downloads in past {intervalMinutes} minute(s) ({currentTotal} total)",
+            < 0 => $"Total changed by {delta} since last check ({currentTotal} total)",
+            _ => $"{currentTotal} total downloads (first check)"
+        };
 
         var builder = Build.VERSION.SdkInt >= BuildVersionCodes.O
             ? new Notification.Builder(this, UpdateChannelId)

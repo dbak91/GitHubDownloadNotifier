@@ -1,10 +1,24 @@
 <resources>
     <string name="app_name">GithubDownloadNotifier</string>
     <string name="config_title">GitHub download monitor</string>
+    <string name="repo_owner_label">Repository owner</string>
     <string name="repo_owner_hint">Repository owner (e.g. dotnet)</string>
+    <string name="repo_name_label">Repository name</string>
     <string name="repo_name_hint">Repository name (e.g. runtime)</string>
-    <string name="interval_hint">Check interval in minutes</string>
+    <string name="interval_label">Check interval</string>
+    <string name="interval_5_minutes">5 minutes</string>
+    <string name="interval_30_minutes">30 minutes</string>
+    <string name="interval_1_hour">1 hour</string>
+    <string name="interval_12_hours">12 hours</string>
+    <string name="interval_1_day">1 day</string>
+    <string name="interval_custom">Custom</string>
+    <string name="custom_interval_hint">Custom interval in minutes</string>
+    <string name="release_scope_all">All Releases</string>
+    <string name="release_scope_latest">Latest Only</string>
+    <string name="notify_always">Always show each check</string>
+    <string name="notify_updates_only">Only show when downloads increase</string>
     <string name="save_settings_button">Save settings</string>
+    <string name="test_notification_button">Test now</string>
     <string name="service_toggle_label">Enable background monitoring</string>
     <string name="service_running">Service running</string>
     <string name="service_stopped">Service stopped</string>
@@ -13,4 +27,9 @@
     <string name="interval_invalid_message">Enter a valid interval in minutes.</string>
     <string name="notification_permission_required">Notification permission is required to send alerts.</string>
     <string name="monitoring_notification_title">GitHub download monitor active</string>
+    <string name="test_notification_channel_name">Manual tests</string>
+    <string name="test_notification_channel_description">Manual notification checks with current GitHub download totals.</string>
+    <string name="test_notification_title">Current download total</string>
+    <string name="test_notification_error">Unable to read current downloads from GitHub.</string>
+    <string name="test_notification_busy">Checking current downloads...</string>
 </resources>
