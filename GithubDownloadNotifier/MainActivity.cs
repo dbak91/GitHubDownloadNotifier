@@ -67,6 +67,7 @@ public class MainActivity : Activity
                 if (TrySaveSettings())
                 {
                     Toast.MakeText(this, Resource.String.settings_saved, ToastLength.Short)?.Show();
+                    ApplySettingsAndEnsureMonitoring();
                 }
             };
         }
@@ -282,6 +283,21 @@ public class MainActivity : Activity
         }
 
         StartMonitoring();
+    }
+
+    private void ApplySettingsAndEnsureMonitoring()
+    {
+        if (_serviceSwitch?.Checked == true)
+        {
+            StopService(new Intent(this, typeof(GitHubDownloadCheckService)));
+            StartMonitoringWithValidation();
+            return;
+        }
+
+        if (_serviceSwitch is not null)
+        {
+            _serviceSwitch.Checked = true;
+        }
     }
 
     private void StartMonitoring()
