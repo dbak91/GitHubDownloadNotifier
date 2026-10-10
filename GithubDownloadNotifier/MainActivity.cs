@@ -30,6 +30,7 @@ public class MainActivity : Activity
     private TextView? _statusTextView;
     private bool _pendingStartMonitoring;
     private bool _pendingTestNotification;
+    private bool _updatingServiceSwitch;
 
     protected override void OnCreate(Bundle? savedInstanceState)
     {
@@ -96,6 +97,11 @@ public class MainActivity : Activity
         {
             _serviceSwitch.CheckedChange += (_, args) =>
             {
+                if (_updatingServiceSwitch)
+                {
+                    return;
+                }
+
                 if (args.IsChecked)
                 {
                     StartMonitoringWithValidation();
@@ -267,11 +273,7 @@ public class MainActivity : Activity
     {
         if (!TrySaveSettings())
         {
-            if (_serviceSwitch is not null)
-            {
-                _serviceSwitch.Checked = false;
-            }
-
+            SetMonitoringUi(false);
             return;
         }
 
@@ -287,17 +289,8 @@ public class MainActivity : Activity
 
     private void ApplySettingsAndEnsureMonitoring()
     {
-        if (_serviceSwitch?.Checked == true)
-        {
-            StopService(new Intent(this, typeof(GitHubDownloadCheckService)));
-            StartMonitoringWithValidation();
-            return;
-        }
-
-        if (_serviceSwitch is not null)
-        {
-            _serviceSwitch.Checked = true;
-        }
+        StopService(new Intent(this, typeof(GitHubDownloadCheckService)));
+        StartMonitoringWithValidation();
     }
 
     private void StartMonitoring()
@@ -314,7 +307,7 @@ public class MainActivity : Activity
         }
 
         SaveServiceEnabled(true);
-        UpdateStatusText(true);
+        SetMonitoringUi(true);
     }
 
     private void StopMonitoring()
@@ -323,7 +316,7 @@ public class MainActivity : Activity
         StopService(serviceIntent);
 
         SaveServiceEnabled(false);
-        UpdateStatusText(false);
+        SetMonitoringUi(false);
     }
 
     private void SaveServiceEnabled(bool enabled)
@@ -342,6 +335,18 @@ public class MainActivity : Activity
         _statusTextView.Text = serviceEnabled
             ? GetString(Resource.String.service_running)
             : GetString(Resource.String.service_stopped);
+    }
+
+    private void SetMonitoringUi(bool enabled)
+    {
+        if (_serviceSwitch is not null)
+        {
+            _updatingServiceSwitch = true;
+            _serviceSwitch.Checked = enabled;
+            _updatingServiceSwitch = false;
+        }
+
+        UpdateStatusText(enabled);
     }
 
     private bool NeedsNotificationPermission()
@@ -375,9 +380,10 @@ public class MainActivity : Activity
             return;
         }
 
-        if (_pendingStartMonitoring && _serviceSwitch is not null)
+        if (_pendingStartMonitoring)
         {
-            _serviceSwitch.Checked = false;
+            SaveServiceEnabled(false);
+            SetMonitoringUi(false);
         }
 
         _pendingStartMonitoring = false;
