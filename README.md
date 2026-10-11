@@ -4,7 +4,9 @@ GitHub Download Notifier is a .NET 10 Android app that monitors GitHub release-a
 
 
 <img width="1080" height="493" alt="Screenshot_20261010-164134" src="https://github.com/user-attachments/assets/aefb483c-cd59-4c1b-a17f-4f192d59f979" />
+
 ![Main screen image](screen5.png)
+
 ![Repo screen image](screen4.png)
 ## Behavior
 
