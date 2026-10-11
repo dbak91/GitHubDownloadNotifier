@@ -13,6 +13,7 @@
   </ItemGroup>
   <ItemGroup>
 	<Compile Include="..\GithubDownloadNotifier\Models\WatcherConfiguration.cs" Link="Models\WatcherConfiguration.cs" />
+	<Compile Include="..\GithubDownloadNotifier\Models\WatcherJsonContext.cs" Link="Models\WatcherJsonContext.cs" />
 	<Compile Include="..\GithubDownloadNotifier\Services\LegacySettingsMigrator.cs" Link="Services\LegacySettingsMigrator.cs" />
 	<Compile Include="..\GithubDownloadNotifier\Services\ScheduleCalculator.cs" Link="Services\ScheduleCalculator.cs" />
 	<Compile Include="..\GithubDownloadNotifier\Services\WatcherStore.cs" Link="Services\WatcherStore.cs" />

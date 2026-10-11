@@ -35,4 +35,21 @@
     <string name="test_notification_title">Current download total</string>
     <string name="test_notification_error">Unable to read current downloads from GitHub.</string>
     <string name="test_notification_busy">Checking current downloads...</string>
+    <string name="repositories_title">Repositories</string>
+    <string name="repositories_description">Configure download and release watchers separately for each repository.</string>
+    <string name="add_repository_button">Add repository</string>
+    <string name="no_repositories_message">No repositories configured.</string>
+    <string name="edit_button">Edit</string>
+    <string name="delete_button">Delete</string>
+    <string name="delete_repository_title">Delete repository?</string>
+    <string name="delete_repository_message">Delete watcher settings for %1$s?</string>
+    <string name="repository_editor_title">Repository watcher</string>
+    <string name="repository_details_section">Repository</string>
+    <string name="download_watcher_section">Download watcher</string>
+    <string name="download_watcher_enabled">Enable download watcher</string>
+    <string name="release_watcher_section">Release watcher</string>
+    <string name="release_watcher_on">Release watcher enabled</string>
+    <string name="release_watcher_off">Release watcher disabled</string>
+    <string name="release_watcher_future_message">Release watcher configuration is added in the dedicated release-watcher change.</string>
+    <string name="save_repository_button">Save repository</string>
 </resources>
