@@ -1,4 +1,3 @@
-
 # GitHub Download Notifier
 
 GitHub Download Notifier is a .NET 10 Android app that monitors GitHub release-asset download counts and sends Android notifications.
@@ -85,3 +84,9 @@ dotnet publish GithubDownloadNotifier\GithubDownloadNotifier.csproj -c Release -
 Published APK files are written under:
 
 `GithubDownloadNotifier\bin\Release\net10.0-android\publish`
+
+## License
+
+Copyright (c) 2026 David Baker.
+
+The source is available for personal, educational, research, charitable, and nonprofit use. Commercial use requires prior written permission. See the [Noncommercial Source License](LICENSE) for the complete terms.
