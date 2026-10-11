@@ -1,3 +1,4 @@
 <Solution>
+  <Project Path="GithubDownloadNotifier.Tests/GithubDownloadNotifier.Tests.csproj" />
   <Project Path="GithubDownloadNotifier/GithubDownloadNotifier.csproj" />
 </Solution>
