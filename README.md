@@ -1,6 +1,6 @@
 # GitHub Download Notifier
 
-GitHub Download Notifier is a .NET 10 Android app that monitors GitHub release-asset download counts and sends Android notifications. Multiple repositories can be configured independently from the repository dashboard.
+GitHub Download Notifier is a .NET 10 Android app that monitors GitHub release-asset download counts and new GitHub releases. Multiple repositories can be configured independently from the repository dashboard.
 
 
 <img width="1080" height="493" alt="Screenshot_20261010-164134" src="https://github.com/user-attachments/assets/aefb483c-cd59-4c1b-a17f-4f192d59f979" />
@@ -12,7 +12,8 @@ GitHub Download Notifier is a .NET 10 Android app that monitors GitHub release-a
 3. Enable its download watcher and select how frequently GitHub should be checked.
 4. Choose whether counts include all releases or only the latest release.
 5. Choose whether every successful check produces a notification or notifications are only sent when downloads increase.
-6. Save the repository.
+6. Optionally enable the release watcher, enter the current tag, and select its schedule.
+7. Save the repository.
 
 Each enabled repository has its own WorkManager job, comparison baseline, and last-run status. The first successful check establishes its baseline. Later checks compare the current total with the stored total for that repository and release scope.
 
@@ -28,6 +29,12 @@ Available intervals are:
 - Custom interval in minutes or days
 
 Day-based schedules include a local run-at time. It defaults to the time when the day schedule is configured and can be changed before saving.
+
+## Release watcher
+
+The release watcher compares GitHub's latest release tag with the configured current tag and sends one notification when a different tag is found. Available schedules are 1 day, 3 days, 7 days, 1 month, and custom days. All release schedules include a local target run-at time.
+
+Download and release watchers have independent schedules and WorkManager jobs for each repository.
 
 ## Release scope
 

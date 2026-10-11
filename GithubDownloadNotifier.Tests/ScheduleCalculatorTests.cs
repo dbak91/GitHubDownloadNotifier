@@ -48,4 +48,16 @@ public sealed class ScheduleCalculatorTests
 
         Assert.Equal(new DateTimeOffset(2026, 2, 28, 9, 0, 0, TimeSpan.Zero), next);
     }
+
+    [Fact]
+    public void MonthsContinueFromLastScheduledOccurrence()
+    {
+        var now = new DateTimeOffset(2026, 4, 10, 10, 0, 0, TimeSpan.Zero);
+        var schedule = WatchSchedule.Months(1, new TimeSpan(9, 30, 0), 31);
+        schedule.LastScheduledUtc = new DateTimeOffset(2026, 2, 28, 9, 30, 0, TimeSpan.Zero);
+
+        var next = ScheduleCalculator.GetNextRun(now, schedule, TimeZoneInfo.Utc);
+
+        Assert.Equal(new DateTimeOffset(2026, 4, 30, 9, 30, 0, TimeSpan.Zero), next);
+    }
 }
