@@ -14,6 +14,8 @@ public sealed class MainActivity : Activity
 {
     private const string LegacyPreferencesName = "github_download_notifier";
     private const string MigrationCompleteKey = "multi_repo_migration_complete";
+    private const string BootPersistencePreferencesName = "boot_persistence";
+    private const string BootPersistenceEnabledKey = "enabled";
     private LinearLayout? _repositoryContainer;
     private TextView? _emptyText;
     private WatcherStore? _store;
@@ -36,6 +38,14 @@ public sealed class MainActivity : Activity
         if (addButton is not null)
         {
             addButton.Click += (_, _) => OpenEditor(null);
+        }
+        var bootPersistenceSwitch = FindViewById<Switch>(Resource.Id.bootPersistenceSwitch);
+        if (bootPersistenceSwitch is not null)
+        {
+            var preferences = GetSharedPreferences(BootPersistencePreferencesName, FileCreationMode.Private);
+            bootPersistenceSwitch.Checked = preferences?.GetBoolean(BootPersistenceEnabledKey, false) == true;
+            bootPersistenceSwitch.CheckedChange += (_, args) =>
+                preferences?.Edit()?.PutBoolean(BootPersistenceEnabledKey, args.IsChecked)?.Apply();
         }
 
         MigrateLegacyConfigurationOnce();

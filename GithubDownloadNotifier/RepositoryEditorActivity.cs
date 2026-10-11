@@ -16,6 +16,8 @@ public sealed class RepositoryEditorActivity : Activity
 
     private static readonly int[] IntervalValues = [15, 30, 60, 720];
     private const int NotificationPermissionRequestCode = 101;
+    private const int DownloadLogFileRequestCode = 201;
+    private const int ReleaseLogFileRequestCode = 202;
     private const string PreferencesName = "github_download_notifier";
     private const string BatteryWarningShownKey = "battery_warning_shown";
     private const string TestChannelId = "manual_test_channel";
@@ -31,11 +33,17 @@ public sealed class RepositoryEditorActivity : Activity
     private Button? _runAtTimeButton;
     private Switch? _allReleasesSwitch;
     private Switch? _alwaysNotifySwitch;
+    private Switch? _downloadLoggingSwitch;
+    private LinearLayout? _downloadLoggingOptions;
+    private TextView? _downloadLogFileText;
     private Switch? _releaseEnabledSwitch;
     private EditText? _currentTagEditText;
     private Spinner? _releaseIntervalSpinner;
     private EditText? _customReleaseDaysEditText;
     private Button? _releaseRunAtTimeButton;
+    private Switch? _releaseLoggingSwitch;
+    private LinearLayout? _releaseLoggingOptions;
+    private TextView? _releaseLogFileText;
     private WatcherStore? _store;
     private DownloadWorkScheduler? _scheduler;
     private ReleaseWorkScheduler? _releaseScheduler;
@@ -62,11 +70,17 @@ public sealed class RepositoryEditorActivity : Activity
         _runAtTimeButton = FindViewById<Button>(Resource.Id.runAtTimeButton);
         _allReleasesSwitch = FindViewById<Switch>(Resource.Id.allReleasesSwitch);
         _alwaysNotifySwitch = FindViewById<Switch>(Resource.Id.alwaysNotifySwitch);
+        _downloadLoggingSwitch = FindViewById<Switch>(Resource.Id.downloadLoggingSwitch);
+        _downloadLoggingOptions = FindViewById<LinearLayout>(Resource.Id.downloadLoggingOptions);
+        _downloadLogFileText = FindViewById<TextView>(Resource.Id.downloadLogFileText);
         _releaseEnabledSwitch = FindViewById<Switch>(Resource.Id.releaseEnabledSwitch);
         _currentTagEditText = FindViewById<EditText>(Resource.Id.currentTagEditText);
         _releaseIntervalSpinner = FindViewById<Spinner>(Resource.Id.releaseIntervalSpinner);
         _customReleaseDaysEditText = FindViewById<EditText>(Resource.Id.customReleaseDaysEditText);
         _releaseRunAtTimeButton = FindViewById<Button>(Resource.Id.releaseRunAtTimeButton);
+        _releaseLoggingSwitch = FindViewById<Switch>(Resource.Id.releaseLoggingSwitch);
+        _releaseLoggingOptions = FindViewById<LinearLayout>(Resource.Id.releaseLoggingOptions);
+        _releaseLogFileText = FindViewById<TextView>(Resource.Id.releaseLogFileText);
         _store = new WatcherStore(FilesDir!.AbsolutePath);
         _scheduler = new DownloadWorkScheduler(this);
         _releaseScheduler = new ReleaseWorkScheduler(this);
@@ -80,6 +94,12 @@ public sealed class RepositoryEditorActivity : Activity
         _alwaysNotifySwitch!.CheckedChange += (_, args) => UpdateNotificationText(args.IsChecked);
         _runAtTimeButton!.Click += (_, _) => ShowTimePicker();
         _releaseRunAtTimeButton!.Click += (_, _) => ShowReleaseTimePicker();
+        _downloadLoggingSwitch!.CheckedChange += (_, _) => UpdateLoggingControls(false);
+        _releaseLoggingSwitch!.CheckedChange += (_, _) => UpdateLoggingControls(true);
+        FindViewById<Button>(Resource.Id.downloadLogFileButton)!.Click += (_, _) => ChooseLogFile(false);
+        FindViewById<Button>(Resource.Id.releaseLogFileButton)!.Click += (_, _) => ChooseLogFile(true);
+        FindViewById<Button>(Resource.Id.downloadLogFieldsButton)!.Click += (_, _) => ChooseLogFields(false);
+        FindViewById<Button>(Resource.Id.releaseLogFieldsButton)!.Click += (_, _) => ChooseLogFields(true);
         FindViewById<Button>(Resource.Id.saveRepositoryButton)!.Click += (_, _) => BeginSave();
         FindViewById<Button>(Resource.Id.testDownloadButton)!.Click += async (_, _) => await BeginTestAsync();
     }
@@ -148,6 +168,12 @@ public sealed class RepositoryEditorActivity : Activity
         _releaseEnabledSwitch!.Checked = _configuration.Release.Enabled;
         _currentTagEditText!.Text = _configuration.Release.PendingTag ?? _configuration.Release.CurrentTag;
         SelectReleaseInterval(_configuration.Release.Schedule);
+        EnsureDefaultLogFields(_configuration.Download.Logging, false);
+        EnsureDefaultLogFields(_configuration.Release.Logging, true);
+        _downloadLoggingSwitch!.Checked = _configuration.Download.Logging.Enabled;
+        _releaseLoggingSwitch!.Checked = _configuration.Release.Logging.Enabled;
+        UpdateLoggingControls(false);
+        UpdateLoggingControls(true);
     }
 
     private void BeginSave()
@@ -214,6 +240,11 @@ public sealed class RepositoryEditorActivity : Activity
             Toast.MakeText(this, Resource.String.repo_required_message, ToastLength.Short)?.Show();
             return false;
         }
+        if (!ValidateLogging(_configuration!.Download.Logging, _downloadLoggingSwitch?.Checked == true) ||
+            !ValidateLogging(_configuration.Release.Logging, _releaseLoggingSwitch?.Checked == true))
+        {
+            return false;
+        }
 
         var releaseEnabled = _releaseEnabledSwitch?.Checked == true;
         var currentTag = _currentTagEditText?.Text?.Trim() ?? string.Empty;
@@ -253,6 +284,7 @@ public sealed class RepositoryEditorActivity : Activity
             ? NotificationMode.EveryCheck
             : NotificationMode.ChangesOnly;
         _configuration.Download.Schedule = schedule;
+        _configuration.Download.Logging.Enabled = _downloadLoggingSwitch?.Checked == true;
         _configuration.Release.Enabled = releaseEnabled;
         if (!string.Equals(_configuration.Release.CurrentTag, currentTag, StringComparison.OrdinalIgnoreCase))
         {
@@ -260,7 +292,99 @@ public sealed class RepositoryEditorActivity : Activity
         }
         _configuration.Release.CurrentTag = currentTag;
         _configuration.Release.Schedule = releaseSchedule;
+        _configuration.Release.Logging.Enabled = _releaseLoggingSwitch?.Checked == true;
         return true;
+    }
+
+    private bool ValidateLogging(WatcherLogConfiguration logging, bool enabled)
+    {
+        if (!enabled)
+        {
+            return true;
+        }
+        if (string.IsNullOrWhiteSpace(logging.DirectoryUri))
+        {
+            Toast.MakeText(this, Resource.String.log_file_required_message, ToastLength.Short)?.Show();
+            return false;
+        }
+        if (logging.Fields.Count == 0)
+        {
+            Toast.MakeText(this, Resource.String.log_fields_required_message, ToastLength.Short)?.Show();
+            return false;
+        }
+        return true;
+    }
+
+    private void UpdateLoggingControls(bool release)
+    {
+        var logging = release ? _configuration?.Release.Logging : _configuration?.Download.Logging;
+        var options = release ? _releaseLoggingOptions : _downloadLoggingOptions;
+        var fileText = release ? _releaseLogFileText : _downloadLogFileText;
+        var enabled = release ? _releaseLoggingSwitch?.Checked == true : _downloadLoggingSwitch?.Checked == true;
+        options!.Visibility = enabled ? Android.Views.ViewStates.Visible : Android.Views.ViewStates.Gone;
+        fileText!.Text = string.IsNullOrWhiteSpace(logging?.FileName)
+            ? GetString(Resource.String.no_log_file_selected)
+            : logging.FileName;
+    }
+
+    private void ChooseLogFile(bool release)
+    {
+        var intent = new Intent(Intent.ActionCreateDocument);
+        intent.AddCategory(Intent.CategoryOpenable);
+        intent.SetType("text/csv");
+        var repository = $"{_ownerEditText?.Text?.Trim()}-{_nameEditText?.Text?.Trim()}".Trim('-');
+        intent.PutExtra(Intent.ExtraTitle, $"{(string.IsNullOrWhiteSpace(repository) ? "github" : repository)}-{(release ? "releases" : "downloads")}.csv");
+        StartActivityForResult(intent, release ? ReleaseLogFileRequestCode : DownloadLogFileRequestCode);
+    }
+
+    private void ChooseLogFields(bool release)
+    {
+        var logging = release ? _configuration!.Release.Logging : _configuration!.Download.Logging;
+        var available = release
+            ? new[] { LogField.Timestamp, LogField.Repository, LogField.Status, LogField.Error, LogField.BaselineTag, LogField.DetectedTag, LogField.ReleaseName, LogField.ReleasePublishedAt, LogField.ReleaseIsPrerelease, LogField.ReleaseUrl }
+            : new[] { LogField.Timestamp, LogField.Repository, LogField.Status, LogField.Error, LogField.DownloadScope, LogField.PreviousDownloadTotal, LogField.CurrentDownloadTotal, LogField.DownloadDelta };
+        var labels = available.Select(FormatLogField).ToArray();
+        var selected = available.Select(logging.Fields.Contains).ToArray();
+        new AlertDialog.Builder(this)
+            .SetTitle(Resource.String.log_fields_title)
+            .SetMultiChoiceItems(labels, selected, (_, args) => selected[args.Which] = args.IsChecked)
+            .SetPositiveButton(Android.Resource.String.Ok, (_, _) =>
+            {
+                logging.Fields = available.Where((_, index) => selected[index]).ToList();
+            })
+            .SetNegativeButton(Android.Resource.String.Cancel, (_, _) => { })
+            .Show();
+    }
+
+    private static string FormatLogField(LogField field)
+        => string.Concat(field.ToString().Select((character, index) => index > 0 && char.IsUpper(character) ? $" {character}" : character.ToString()));
+
+    private static void EnsureDefaultLogFields(WatcherLogConfiguration logging, bool release)
+    {
+        if (logging.Fields.Count > 0)
+        {
+            return;
+        }
+        logging.Fields = release
+            ? [LogField.Timestamp, LogField.Repository, LogField.Status, LogField.BaselineTag, LogField.DetectedTag]
+            : [LogField.Timestamp, LogField.Repository, LogField.Status, LogField.CurrentDownloadTotal, LogField.DownloadDelta];
+    }
+
+    protected override void OnActivityResult(int requestCode, Result resultCode, Intent? data)
+    {
+        base.OnActivityResult(requestCode, resultCode, data);
+        if (resultCode != Result.Ok || data?.Data is null ||
+            requestCode is not (DownloadLogFileRequestCode or ReleaseLogFileRequestCode))
+        {
+            return;
+        }
+
+        ContentResolver?.TakePersistableUriPermission(data.Data, ActivityFlags.GrantReadUriPermission | ActivityFlags.GrantWriteUriPermission);
+        var release = requestCode == ReleaseLogFileRequestCode;
+        var logging = release ? _configuration!.Release.Logging : _configuration!.Download.Logging;
+        logging.DirectoryUri = data.Data.ToString() ?? string.Empty;
+        logging.FileName = data.Data.LastPathSegment ?? "watcher-log.csv";
+        UpdateLoggingControls(release);
     }
 
     private async Task BeginTestAsync()

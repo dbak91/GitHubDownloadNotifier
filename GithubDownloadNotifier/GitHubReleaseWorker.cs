@@ -84,6 +84,19 @@ public sealed class GitHubReleaseWorker(Context context, WorkerParameters worker
             {
                 SendReleaseNotification(repository, release);
             }
+            await WriteLogAsync(repository, new WatcherLogEntry
+            {
+                Timestamp = DateTimeOffset.UtcNow,
+                Repository = $"{repository.Owner}/{repository.Name}",
+                WatcherType = "Release",
+                Status = "Success",
+                BaselineTag = repository.Release.CurrentTag,
+                DetectedTag = release.Tag,
+                ReleaseName = release.Name,
+                ReleasePublishedAt = release.PublishedAt,
+                ReleaseIsPrerelease = release.IsPrerelease,
+                ReleaseUrl = release.Url
+            });
         }
         catch (Exception exception)
         {
@@ -100,6 +113,26 @@ public sealed class GitHubReleaseWorker(Context context, WorkerParameters worker
                     };
                 }
             });
+            await WriteLogAsync(repository, new WatcherLogEntry
+            {
+                Timestamp = DateTimeOffset.UtcNow,
+                Repository = $"{repository.Owner}/{repository.Name}",
+                WatcherType = "Release",
+                Status = "Error",
+                Error = exception.Message,
+                BaselineTag = repository.Release.CurrentTag
+            });
+        }
+    }
+
+    private async Task WriteLogAsync(RepositoryWatchConfiguration repository, WatcherLogEntry entry)
+    {
+        try
+        {
+            await new AndroidWatcherLogWriter(ApplicationContext).AppendAsync(repository.Release.Logging, entry);
+        }
+        catch
+        {
         }
     }
 

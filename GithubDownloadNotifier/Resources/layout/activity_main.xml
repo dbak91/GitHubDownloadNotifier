@@ -25,6 +25,13 @@
 		android:layout_marginTop="16dp"
 		android:text="@string/add_repository_button" />
 
+	<Switch
+		android:id="@+id/bootPersistenceSwitch"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_marginTop="8dp"
+		android:text="@string/boot_persistence" />
+
 	<TextView
 		android:id="@+id/emptyTextView"
 		android:layout_width="match_parent"

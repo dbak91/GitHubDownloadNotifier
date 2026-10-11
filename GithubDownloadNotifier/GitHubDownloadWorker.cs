@@ -85,6 +85,7 @@ public sealed class GitHubDownloadWorker(Context context, WorkerParameters worke
                 repository.Name,
                 repository.Download.Scope);
             int? delta = null;
+            int? previousTotal = null;
             var shouldNotify = false;
             store.Update(latestDocument =>
             {
@@ -94,7 +95,7 @@ public sealed class GitHubDownloadWorker(Context context, WorkerParameters worke
                     return;
                 }
 
-                var previousTotal = latest.Download.LastDownloadTotal;
+                previousTotal = latest.Download.LastDownloadTotal;
                 delta = previousTotal.HasValue ? currentTotal - previousTotal.Value : null;
                 shouldNotify = latest.Download.NotificationMode == NotificationMode.EveryCheck || delta > 0;
                 latest.Download.LastDownloadTotal = currentTotal;
@@ -110,6 +111,18 @@ public sealed class GitHubDownloadWorker(Context context, WorkerParameters worke
             {
                 SendUpdateNotification(repository, delta, currentTotal);
             }
+
+            await WriteLogAsync(repository, new WatcherLogEntry
+            {
+                Timestamp = DateTimeOffset.UtcNow,
+                Repository = $"{repository.Owner}/{repository.Name}",
+                WatcherType = "Download",
+                Status = "Success",
+                DownloadScope = repository.Download.Scope.ToString(),
+                PreviousDownloadTotal = previousTotal,
+                CurrentDownloadTotal = currentTotal,
+                DownloadDelta = delta
+            });
 
             return true;
         }
@@ -128,7 +141,28 @@ public sealed class GitHubDownloadWorker(Context context, WorkerParameters worke
                     };
                 }
             });
+            await WriteLogAsync(repository, new WatcherLogEntry
+            {
+                Timestamp = DateTimeOffset.UtcNow,
+                Repository = $"{repository.Owner}/{repository.Name}",
+                WatcherType = "Download",
+                Status = "Error",
+                Error = exception.Message,
+                DownloadScope = repository.Download.Scope.ToString(),
+                PreviousDownloadTotal = repository.Download.LastDownloadTotal
+            });
             return false;
+        }
+    }
+
+    private async Task WriteLogAsync(RepositoryWatchConfiguration repository, WatcherLogEntry entry)
+    {
+        try
+        {
+            await new AndroidWatcherLogWriter(ApplicationContext).AppendAsync(repository.Download.Logging, entry);
+        }
+        catch
+        {
         }
     }
 
