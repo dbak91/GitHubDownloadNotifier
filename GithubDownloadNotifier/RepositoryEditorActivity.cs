@@ -14,7 +14,7 @@ public sealed class RepositoryEditorActivity : Activity
 {
     public const string RepositoryIdExtra = "repository_id";
 
-    private static readonly int[] IntervalValues = [15, 30, 60, 720, 1440];
+    private static readonly int[] IntervalValues = [15, 30, 60, 720];
     private const int NotificationPermissionRequestCode = 101;
     private const string PreferencesName = "github_download_notifier";
     private const string BatteryWarningShownKey = "battery_warning_shown";
@@ -25,7 +25,10 @@ public sealed class RepositoryEditorActivity : Activity
     private EditText? _nameEditText;
     private Switch? _downloadEnabledSwitch;
     private Spinner? _intervalSpinner;
+    private LinearLayout? _customIntervalLayout;
     private EditText? _customIntervalEditText;
+    private Spinner? _customIntervalUnitSpinner;
+    private Button? _runAtTimeButton;
     private Switch? _allReleasesSwitch;
     private Switch? _alwaysNotifySwitch;
     private TextView? _releaseSummaryText;
@@ -34,6 +37,8 @@ public sealed class RepositoryEditorActivity : Activity
     private RepositoryWatchConfiguration? _configuration;
     private bool _saveAfterPermission;
     private bool _testAfterPermission;
+    private int _runAtHour = DateTime.Now.Hour;
+    private int _runAtMinute = DateTime.Now.Minute;
 
     protected override void OnCreate(Bundle? savedInstanceState)
     {
@@ -44,7 +49,10 @@ public sealed class RepositoryEditorActivity : Activity
         _nameEditText = FindViewById<EditText>(Resource.Id.repoNameEditText);
         _downloadEnabledSwitch = FindViewById<Switch>(Resource.Id.downloadEnabledSwitch);
         _intervalSpinner = FindViewById<Spinner>(Resource.Id.intervalSpinner);
+        _customIntervalLayout = FindViewById<LinearLayout>(Resource.Id.customIntervalLayout);
         _customIntervalEditText = FindViewById<EditText>(Resource.Id.customIntervalEditText);
+        _customIntervalUnitSpinner = FindViewById<Spinner>(Resource.Id.customIntervalUnitSpinner);
+        _runAtTimeButton = FindViewById<Button>(Resource.Id.runAtTimeButton);
         _allReleasesSwitch = FindViewById<Switch>(Resource.Id.allReleasesSwitch);
         _alwaysNotifySwitch = FindViewById<Switch>(Resource.Id.alwaysNotifySwitch);
         _releaseSummaryText = FindViewById<TextView>(Resource.Id.releaseSummaryText);
@@ -52,10 +60,12 @@ public sealed class RepositoryEditorActivity : Activity
         _scheduler = new DownloadWorkScheduler(this);
 
         ConfigureIntervalSpinner();
+        ConfigureUnitSpinner();
         LoadConfiguration();
 
         _allReleasesSwitch!.CheckedChange += (_, args) => UpdateScopeText(args.IsChecked);
         _alwaysNotifySwitch!.CheckedChange += (_, args) => UpdateNotificationText(args.IsChecked);
+        _runAtTimeButton!.Click += (_, _) => ShowTimePicker();
         FindViewById<Button>(Resource.Id.saveRepositoryButton)!.Click += (_, _) => BeginSave();
         FindViewById<Button>(Resource.Id.testDownloadButton)!.Click += async (_, _) => await BeginTestAsync();
     }
@@ -74,7 +84,20 @@ public sealed class RepositoryEditorActivity : Activity
         var adapter = new ArrayAdapter<string>(this, Android.Resource.Layout.SimpleSpinnerItem, labels);
         adapter.SetDropDownViewResource(Android.Resource.Layout.SimpleSpinnerDropDownItem);
         _intervalSpinner!.Adapter = adapter;
-        _intervalSpinner.ItemSelected += (_, _) => UpdateCustomIntervalVisibility();
+        _intervalSpinner.ItemSelected += (_, _) => UpdateScheduleControls();
+    }
+
+    private void ConfigureUnitSpinner()
+    {
+        var labels = new[]
+        {
+            GetString(Resource.String.interval_unit_minutes),
+            GetString(Resource.String.interval_unit_days)
+        };
+        var adapter = new ArrayAdapter<string>(this, Android.Resource.Layout.SimpleSpinnerItem, labels);
+        adapter.SetDropDownViewResource(Android.Resource.Layout.SimpleSpinnerDropDownItem);
+        _customIntervalUnitSpinner!.Adapter = adapter;
+        _customIntervalUnitSpinner.ItemSelected += (_, _) => UpdateScheduleControls();
     }
 
     private void LoadConfiguration()
@@ -89,7 +112,7 @@ public sealed class RepositoryEditorActivity : Activity
         _downloadEnabledSwitch!.Checked = _configuration.Download.Enabled;
         _allReleasesSwitch!.Checked = _configuration.Download.Scope == DownloadScope.AllReleases;
         _alwaysNotifySwitch!.Checked = _configuration.Download.NotificationMode == NotificationMode.EveryCheck;
-        SelectInterval(_configuration.Download.Schedule.Amount);
+        SelectInterval(_configuration.Download.Schedule);
         UpdateScopeText(_allReleasesSwitch.Checked);
         UpdateNotificationText(_alwaysNotifySwitch.Checked);
         _releaseSummaryText!.Text = _configuration.Release.Enabled
@@ -154,13 +177,18 @@ public sealed class RepositoryEditorActivity : Activity
             return false;
         }
 
-        if (!TryGetInterval(out var intervalMinutes))
+        if (!TryGetSchedule(out var schedule))
         {
             Toast.MakeText(this, Resource.String.interval_invalid_message, ToastLength.Short)?.Show();
             return false;
         }
 
-        _configuration!.Owner = owner;
+        if (SchedulesMatch(_configuration!.Download.Schedule, schedule))
+        {
+            schedule.LastScheduledUtc = _configuration.Download.Schedule.LastScheduledUtc;
+        }
+
+        _configuration.Owner = owner;
         _configuration.Name = name;
         _configuration.Download.Enabled = _downloadEnabledSwitch?.Checked == true;
         _configuration.Download.Scope = _allReleasesSwitch?.Checked == true
@@ -169,7 +197,7 @@ public sealed class RepositoryEditorActivity : Activity
         _configuration.Download.NotificationMode = _alwaysNotifySwitch?.Checked == true
             ? NotificationMode.EveryCheck
             : NotificationMode.ChangesOnly;
-        _configuration.Download.Schedule = WatchSchedule.Minutes(intervalMinutes);
+        _configuration.Download.Schedule = schedule;
         return true;
     }
 
@@ -238,30 +266,87 @@ public sealed class RepositoryEditorActivity : Activity
         }
     }
 
-    private void SelectInterval(int intervalMinutes)
+    private void SelectInterval(WatchSchedule schedule)
     {
-        var presetIndex = Array.IndexOf(IntervalValues, intervalMinutes);
-        _intervalSpinner!.SetSelection(presetIndex >= 0 ? presetIndex : IntervalValues.Length);
-        _customIntervalEditText!.Text = intervalMinutes.ToString();
-        UpdateCustomIntervalVisibility();
+        if (schedule.Unit == ScheduleUnit.Days && schedule.Amount == 1)
+        {
+            _intervalSpinner!.SetSelection(IntervalValues.Length);
+        }
+        else if (schedule.Unit == ScheduleUnit.Minutes)
+        {
+            var presetIndex = Array.IndexOf(IntervalValues, schedule.Amount);
+            _intervalSpinner!.SetSelection(presetIndex >= 0 ? presetIndex : IntervalValues.Length + 1);
+        }
+        else
+        {
+            _intervalSpinner!.SetSelection(IntervalValues.Length + 1);
+        }
+
+        _customIntervalEditText!.Text = schedule.Amount.ToString();
+        _customIntervalUnitSpinner!.SetSelection(schedule.Unit == ScheduleUnit.Days ? 1 : 0);
+        if (schedule.Unit == ScheduleUnit.Days)
+        {
+            _runAtHour = schedule.RunAtHour;
+            _runAtMinute = schedule.RunAtMinute;
+        }
+        UpdateScheduleControls();
     }
 
-    private bool TryGetInterval(out int intervalMinutes)
+    private bool TryGetSchedule(out WatchSchedule schedule)
     {
         var selected = _intervalSpinner?.SelectedItemPosition ?? -1;
         if (selected >= 0 && selected < IntervalValues.Length)
         {
-            intervalMinutes = IntervalValues[selected];
+            schedule = WatchSchedule.Minutes(IntervalValues[selected]);
             return true;
         }
 
-        return int.TryParse(_customIntervalEditText?.Text?.Trim(), out intervalMinutes) && intervalMinutes >= 15;
+        if (selected == IntervalValues.Length)
+        {
+            schedule = WatchSchedule.Days(1, new TimeSpan(_runAtHour, _runAtMinute, 0));
+            return true;
+        }
+
+        var isDays = _customIntervalUnitSpinner?.SelectedItemPosition == 1;
+        if (int.TryParse(_customIntervalEditText?.Text?.Trim(), out var amount) &&
+            amount >= (isDays ? 1 : 15))
+        {
+            schedule = isDays
+                ? WatchSchedule.Days(amount, new TimeSpan(_runAtHour, _runAtMinute, 0))
+                : WatchSchedule.Minutes(amount);
+            return true;
+        }
+
+        schedule = WatchSchedule.Minutes(15);
+        return false;
     }
 
-    private void UpdateCustomIntervalVisibility()
-        => _customIntervalEditText!.Visibility = _intervalSpinner?.SelectedItemPosition == IntervalValues.Length
-            ? Android.Views.ViewStates.Visible
-            : Android.Views.ViewStates.Gone;
+    private void UpdateScheduleControls()
+    {
+        var selected = _intervalSpinner?.SelectedItemPosition ?? -1;
+        var custom = selected == IntervalValues.Length + 1;
+        var days = selected == IntervalValues.Length ||
+            (custom && _customIntervalUnitSpinner?.SelectedItemPosition == 1);
+        _customIntervalLayout!.Visibility = custom ? Android.Views.ViewStates.Visible : Android.Views.ViewStates.Gone;
+        _runAtTimeButton!.Visibility = days ? Android.Views.ViewStates.Visible : Android.Views.ViewStates.Gone;
+        _runAtTimeButton.Text = GetString(
+            Resource.String.run_at_time,
+            DateTime.Today.AddHours(_runAtHour).AddMinutes(_runAtMinute).ToString("t"));
+    }
+
+    private void ShowTimePicker()
+        => new TimePickerDialog(this, (_, args) =>
+        {
+            _runAtHour = args.HourOfDay;
+            _runAtMinute = args.Minute;
+            UpdateScheduleControls();
+        }, _runAtHour, _runAtMinute, false).Show();
+
+    private static bool SchedulesMatch(WatchSchedule left, WatchSchedule right)
+        => left.Unit == right.Unit &&
+           left.Amount == right.Amount &&
+           left.RunAtHour == right.RunAtHour &&
+           left.RunAtMinute == right.RunAtMinute;
 
     private void UpdateScopeText(bool allReleases)
         => _allReleasesSwitch!.Text = GetString(allReleases

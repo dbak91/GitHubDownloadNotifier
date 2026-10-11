@@ -25,7 +25,9 @@ Available intervals are:
 - 1 hour
 - 12 hours
 - 1 day
-- Custom interval in minutes
+- Custom interval in minutes or days
+
+Day-based schedules include a local run-at time. It defaults to the time when the day schedule is configured and can be changed before saving.
 
 ## Release scope
 
@@ -39,7 +41,7 @@ Separate comparison baselines are maintained for each scope, so changing scope d
 - **Only show when downloads increase** sends a notification only when the current total is greater than the previous total.
 - **Always show each check** reports every successful scheduled check, including no-change and first-check results.
 
-WorkManager runs checks in the background without a persistent monitoring notification. Failed checks are retried and do not produce download-update notifications.
+WorkManager runs checks in the background without a persistent monitoring notification. Failed checks do not produce download-update notifications, and the next configured occurrence is still scheduled.
 
 ## Test Now
 
@@ -62,7 +64,7 @@ Notification permission is requested when background monitoring is first enabled
 
 ## Service lifetime
 
-Monitoring uses Android WorkManager. Android may delay checks to optimize battery use, and periodic intervals have a minimum of 15 minutes. WorkManager preserves scheduled work across app process and device restarts without a custom boot receiver. The app displays a one-time warning with a shortcut to Android battery optimization settings when monitoring is first enabled.
+Monitoring uses chained one-time Android WorkManager jobs. Android may delay checks to optimize battery use, minute intervals have a minimum of 15 minutes, and day run-at times are targets rather than exact alarms. WorkManager preserves scheduled work across app process and device restarts without a custom boot receiver. The app displays a one-time warning with a shortcut to Android battery optimization settings when monitoring is first enabled.
 
 ## GitHub API considerations
 
