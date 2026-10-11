@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+	<TargetFramework>net10.0</TargetFramework>
+	<ImplicitUsings>enable</ImplicitUsings>
+	<Nullable>enable</Nullable>
+	<IsPackable>false</IsPackable>
+	<IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+	<PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
+	<PackageReference Include="xunit.v3" Version="3.2.2" />
+	<PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+  </ItemGroup>
+  <ItemGroup>
+	<Compile Include="..\GithubDownloadNotifier\Models\WatcherConfiguration.cs" Link="Models\WatcherConfiguration.cs" />
+	<Compile Include="..\GithubDownloadNotifier\Services\LegacySettingsMigrator.cs" Link="Services\LegacySettingsMigrator.cs" />
+	<Compile Include="..\GithubDownloadNotifier\Services\ScheduleCalculator.cs" Link="Services\ScheduleCalculator.cs" />
+	<Compile Include="..\GithubDownloadNotifier\Services\WatcherStore.cs" Link="Services\WatcherStore.cs" />
+  </ItemGroup>
+</Project>
