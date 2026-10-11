@@ -55,6 +55,20 @@ public sealed class WatcherStoreTests : IDisposable
         Assert.False(repository.Release.Enabled);
     }
 
+    [Fact]
+    public void UpdateAtomicallyChangesExistingDocument()
+    {
+        var store = new WatcherStore(_directory);
+        store.Save(new WatcherConfigurationDocument
+        {
+            Repositories = [new RepositoryWatchConfiguration { Owner = "before", Name = "repo" }]
+        });
+
+        store.Update(document => document.Repositories[0].Owner = "after");
+
+        Assert.Equal("after", store.Load().Repositories[0].Owner);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_directory))

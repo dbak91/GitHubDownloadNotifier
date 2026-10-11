@@ -1,575 +1,143 @@
-using Android;
 using Android.App;
 using Android.Content;
-using Android.Content.PM;
 using Android.OS;
+using Android.Views;
 using Android.Widget;
 using AndroidX.Work;
-using Java.Util.Concurrent;
-using System.Net.Http.Headers;
-using System.Text.Json;
+using GithubDownloadNotifier.Models;
+using GithubDownloadNotifier.Services;
 
 namespace GithubDownloadNotifier;
 
 [Activity(Label = "@string/app_name", MainLauncher = true)]
-public class MainActivity : Activity
+public sealed class MainActivity : Activity
 {
-    private static readonly int[] IntervalValues = [15, 30, 60, 720, 1440];
-
-    private const int NotificationPermissionRequestCode = 100;
-    private const string KeyServiceEnabled = "service_enabled";
-    private const string KeyBatteryWarningShown = "battery_warning_shown";
-    private const string TestChannelId = "manual_test_channel";
-    private const int TestNotificationId = 2001;
-    private const string LastTotalPrefix = "last_total_";
-
-    private EditText? _repoOwnerEditText;
-    private EditText? _repoNameEditText;
-    private Spinner? _intervalSpinner;
-    private EditText? _customIntervalEditText;
-    private Switch? _allReleasesSwitch;
-    private Switch? _alwaysNotifySwitch;
-    private Switch? _serviceSwitch;
-    private TextView? _statusTextView;
-    private bool _pendingStartMonitoring;
-    private bool _pendingTestNotification;
-    private bool _updatingServiceSwitch;
+    private const string LegacyPreferencesName = "github_download_notifier";
+    private const string MigrationCompleteKey = "multi_repo_migration_complete";
+    private LinearLayout? _repositoryContainer;
+    private TextView? _emptyText;
+    private WatcherStore? _store;
+    private DownloadWorkScheduler? _scheduler;
 
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
         SetContentView(Resource.Layout.activity_main);
 
-        _repoOwnerEditText = FindViewById<EditText>(Resource.Id.repoOwnerEditText);
-        _repoNameEditText = FindViewById<EditText>(Resource.Id.repoNameEditText);
-        _intervalSpinner = FindViewById<Spinner>(Resource.Id.intervalSpinner);
-        _customIntervalEditText = FindViewById<EditText>(Resource.Id.customIntervalEditText);
-        _allReleasesSwitch = FindViewById<Switch>(Resource.Id.allReleasesSwitch);
-        _alwaysNotifySwitch = FindViewById<Switch>(Resource.Id.alwaysNotifySwitch);
-        _serviceSwitch = FindViewById<Switch>(Resource.Id.serviceSwitch);
-        _statusTextView = FindViewById<TextView>(Resource.Id.statusTextView);
-        var saveButton = FindViewById<Button>(Resource.Id.saveButton);
-        var testNotificationButton = FindViewById<Button>(Resource.Id.testNotificationButton);
+        _repositoryContainer = FindViewById<LinearLayout>(Resource.Id.repositoryContainer);
+        _emptyText = FindViewById<TextView>(Resource.Id.emptyTextView);
+        _store = new WatcherStore(FilesDir!.AbsolutePath);
+        _scheduler = new DownloadWorkScheduler(this);
+        WorkManager.GetInstance(this).CancelUniqueWork("github_download_monitor");
 
-        ConfigureIntervalSpinner();
-        LoadSettings();
-
-        if (_allReleasesSwitch is not null)
+        var addButton = FindViewById<Button>(Resource.Id.addRepositoryButton);
+        if (addButton is not null)
         {
-            _allReleasesSwitch.CheckedChange += (_, args) => UpdateReleaseScopeText(args.IsChecked);
+            addButton.Click += (_, _) => OpenEditor(null);
         }
 
-        if (_alwaysNotifySwitch is not null)
+        MigrateLegacyConfigurationOnce();
+    }
+
+    protected override void OnResume()
+    {
+        base.OnResume();
+        RenderRepositories();
+    }
+
+    private void MigrateLegacyConfigurationOnce()
+    {
+        var preferences = GetSharedPreferences(LegacyPreferencesName, FileCreationMode.Private);
+        if (preferences?.GetBoolean(MigrationCompleteKey, false) == true || _store is null)
         {
-            _alwaysNotifySwitch.CheckedChange += (_, args) => UpdateNotificationModeText(args.IsChecked);
+            return;
         }
 
-        if (saveButton is not null)
+        var existing = _store.Load();
+        if (existing.Repositories.Count == 0)
         {
-            saveButton.Click += (_, _) =>
+            var migrated = LegacySettingsMigrator.Migrate(new LegacyWatcherSettings(
+                preferences?.GetString("repo_owner", string.Empty) ?? string.Empty,
+                preferences?.GetString("repo_name", string.Empty) ?? string.Empty,
+                preferences?.GetInt("check_interval_minutes", 60) ?? 60,
+                preferences?.GetBoolean("all_releases", true) ?? true,
+                preferences?.GetBoolean("always_notify", false) ?? false,
+                preferences?.GetBoolean("service_enabled", false) ?? false));
+
+            if (migrated.Repositories.Count > 0)
             {
-                if (TrySaveSettings())
-                {
-                    Toast.MakeText(this, Resource.String.settings_saved, ToastLength.Short)?.Show();
-                    ApplySettingsAndEnsureMonitoring();
-                }
-            };
+                _store.Save(migrated);
+                _scheduler?.Synchronize(migrated);
+            }
         }
 
-        if (testNotificationButton is not null)
-        {
-            testNotificationButton.Click += async (_, _) =>
-            {
-                if (!TrySaveSettings())
-                {
-                    return;
-                }
-
-                if (NeedsNotificationPermission())
-                {
-                    _pendingTestNotification = true;
-                    RequestPermissions([Manifest.Permission.PostNotifications], NotificationPermissionRequestCode);
-                    return;
-                }
-
-                await SendTestNotificationAsync();
-            };
-        }
-
-        if (_serviceSwitch is not null)
-        {
-            _serviceSwitch.CheckedChange += (_, args) =>
-            {
-                if (_updatingServiceSwitch)
-                {
-                    return;
-                }
-
-                if (args.IsChecked)
-                {
-                    StartMonitoringWithValidation();
-                }
-                else
-                {
-                    StopMonitoring();
-                }
-            };
-        }
-
-        UpdateStatusText(_serviceSwitch?.Checked == true);
+        preferences?.Edit()?.PutBoolean(MigrationCompleteKey, true)?.Apply();
     }
 
-    private void LoadSettings()
+    private void RenderRepositories()
     {
-        var preferences = GetSharedPreferences(GitHubDownloadWorker.PreferencesName, FileCreationMode.Private);
-        var owner = preferences?.GetString(GitHubDownloadWorker.KeyOwner, string.Empty) ?? string.Empty;
-        var repo = preferences?.GetString(GitHubDownloadWorker.KeyRepo, string.Empty) ?? string.Empty;
-        var interval = Math.Max(15, preferences?.GetInt(GitHubDownloadWorker.KeyIntervalMinutes, 60) ?? 60);
-        var allReleases = preferences?.GetBoolean(GitHubDownloadWorker.KeyAllReleases, true) ?? true;
-        var alwaysNotify = preferences?.GetBoolean(GitHubDownloadWorker.KeyAlwaysNotify, false) ?? false;
-        var serviceEnabled = preferences?.GetBoolean(KeyServiceEnabled, false) ?? false;
-
-        if (_repoOwnerEditText is not null)
-        {
-            _repoOwnerEditText.Text = owner;
-        }
-
-        if (_repoNameEditText is not null)
-        {
-            _repoNameEditText.Text = repo;
-        }
-
-        SelectInterval(interval);
-
-        if (_allReleasesSwitch is not null)
-        {
-            _allReleasesSwitch.Checked = allReleases;
-            UpdateReleaseScopeText(allReleases);
-        }
-
-        if (_alwaysNotifySwitch is not null)
-        {
-            _alwaysNotifySwitch.Checked = alwaysNotify;
-            UpdateNotificationModeText(alwaysNotify);
-        }
-
-        if (_serviceSwitch is not null)
-        {
-            _serviceSwitch.Checked = serviceEnabled;
-        }
-    }
-
-    private bool TrySaveSettings()
-    {
-        var owner = _repoOwnerEditText?.Text?.Trim() ?? string.Empty;
-        var repo = _repoNameEditText?.Text?.Trim() ?? string.Empty;
-
-        if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(repo))
-        {
-            Toast.MakeText(this, Resource.String.repo_required_message, ToastLength.Short)?.Show();
-            return false;
-        }
-
-        if (!TryGetSelectedInterval(out var intervalMinutes))
-        {
-            Toast.MakeText(this, Resource.String.interval_invalid_message, ToastLength.Short)?.Show();
-            return false;
-        }
-
-        var preferences = GetSharedPreferences(GitHubDownloadWorker.PreferencesName, FileCreationMode.Private);
-        preferences?.Edit()
-            ?.PutString(GitHubDownloadWorker.KeyOwner, owner)
-            ?.PutString(GitHubDownloadWorker.KeyRepo, repo)
-            ?.PutInt(GitHubDownloadWorker.KeyIntervalMinutes, intervalMinutes)
-            ?.PutBoolean(GitHubDownloadWorker.KeyAllReleases, _allReleasesSwitch?.Checked ?? true)
-            ?.PutBoolean(GitHubDownloadWorker.KeyAlwaysNotify, _alwaysNotifySwitch?.Checked ?? false)
-            ?.Apply();
-
-        return true;
-    }
-
-    private void UpdateNotificationModeText(bool alwaysNotify)
-    {
-        if (_alwaysNotifySwitch is not null)
-        {
-            _alwaysNotifySwitch.Text = GetString(alwaysNotify
-                ? Resource.String.notify_always
-                : Resource.String.notify_updates_only);
-        }
-    }
-
-    private void ConfigureIntervalSpinner()
-    {
-        if (_intervalSpinner is null)
+        if (_store is null || _repositoryContainer is null)
         {
             return;
         }
 
-        var labels = new[]
+        var document = _store.Load();
+        _repositoryContainer.RemoveAllViews();
+        if (_emptyText is not null)
         {
-            GetString(Resource.String.interval_15_minutes),
-            GetString(Resource.String.interval_30_minutes),
-            GetString(Resource.String.interval_1_hour),
-            GetString(Resource.String.interval_12_hours),
-            GetString(Resource.String.interval_1_day),
-            GetString(Resource.String.interval_custom)
-        };
-
-        var adapter = new ArrayAdapter<string>(this, Android.Resource.Layout.SimpleSpinnerItem, labels);
-        adapter.SetDropDownViewResource(Android.Resource.Layout.SimpleSpinnerDropDownItem);
-        _intervalSpinner.Adapter = adapter;
-        _intervalSpinner.ItemSelected += (_, _) => UpdateCustomIntervalVisibility();
-    }
-
-    private void SelectInterval(int intervalMinutes)
-    {
-        if (_intervalSpinner is null)
-        {
-            return;
+            _emptyText.Visibility = document.Repositories.Count == 0 ? ViewStates.Visible : ViewStates.Gone;
         }
 
-        var presetIndex = Array.IndexOf(IntervalValues, intervalMinutes);
-        var selectedIndex = presetIndex >= 0 ? presetIndex : IntervalValues.Length;
-        _intervalSpinner.SetSelection(selectedIndex);
-
-        if (_customIntervalEditText is not null)
+        foreach (var repository in document.Repositories.OrderBy(item => item.Owner).ThenBy(item => item.Name))
         {
-            _customIntervalEditText.Text = intervalMinutes.ToString();
-        }
-
-        UpdateCustomIntervalVisibility();
-    }
-
-    private void UpdateCustomIntervalVisibility()
-    {
-        if (_customIntervalEditText is not null)
-        {
-            _customIntervalEditText.Visibility = _intervalSpinner?.SelectedItemPosition == IntervalValues.Length
-                ? Android.Views.ViewStates.Visible
-                : Android.Views.ViewStates.Gone;
+            var view = LayoutInflater.Inflate(Resource.Layout.repository_list_item, _repositoryContainer, false);
+            view.FindViewById<TextView>(Resource.Id.repositoryNameText)!.Text = $"{repository.Owner}/{repository.Name}";
+            view.FindViewById<TextView>(Resource.Id.repositorySummaryText)!.Text = BuildSummary(repository);
+            view.FindViewById<Button>(Resource.Id.editRepositoryButton)!.Click += (_, _) => OpenEditor(repository.Id);
+            view.FindViewById<Button>(Resource.Id.deleteRepositoryButton)!.Click += (_, _) => ConfirmDelete(repository);
+            _repositoryContainer.AddView(view);
         }
     }
 
-    private bool TryGetSelectedInterval(out int intervalMinutes)
+    private static string BuildSummary(RepositoryWatchConfiguration repository)
     {
-        var selectedPosition = _intervalSpinner?.SelectedItemPosition ?? -1;
-        if (selectedPosition >= 0 && selectedPosition < IntervalValues.Length)
+        var download = repository.Download.Enabled
+            ? $"Downloads: on, every {repository.Download.Schedule.Amount} min"
+            : "Downloads: off";
+        var release = repository.Release.Enabled ? "Releases: on" : "Releases: off";
+        return $"{download}  •  {release}";
+    }
+
+    private void OpenEditor(string? repositoryId)
+    {
+        var intent = new Intent(this, typeof(RepositoryEditorActivity));
+        if (!string.IsNullOrWhiteSpace(repositoryId))
         {
-            intervalMinutes = IntervalValues[selectedPosition];
-            return true;
+            intent.PutExtra(RepositoryEditorActivity.RepositoryIdExtra, repositoryId);
         }
 
-        return int.TryParse(_customIntervalEditText?.Text?.Trim(), out intervalMinutes) && intervalMinutes >= 15;
+        StartActivity(intent);
     }
 
-    private void UpdateReleaseScopeText(bool allReleases)
+    private void ConfirmDelete(RepositoryWatchConfiguration repository)
     {
-        if (_allReleasesSwitch is not null)
-        {
-            _allReleasesSwitch.Text = GetString(allReleases
-                ? Resource.String.release_scope_all
-                : Resource.String.release_scope_latest);
-        }
-    }
-
-    private void StartMonitoringWithValidation()
-    {
-        if (!TrySaveSettings())
-        {
-            SetMonitoringUi(false);
-            return;
-        }
-
-        if (NeedsNotificationPermission())
-        {
-            _pendingStartMonitoring = true;
-            RequestPermissions([Manifest.Permission.PostNotifications], NotificationPermissionRequestCode);
-            return;
-        }
-
-        StartMonitoring();
-    }
-
-    private void ApplySettingsAndEnsureMonitoring()
-    {
-        WorkManager.GetInstance(this).CancelUniqueWork(GitHubDownloadWorker.UniqueWorkName);
-        StartMonitoringWithValidation();
-    }
-
-    private void StartMonitoring()
-    {
-        var preferences = GetSharedPreferences(GitHubDownloadWorker.PreferencesName, FileCreationMode.Private);
-        var intervalMinutes = Math.Max(15, preferences?.GetInt(GitHubDownloadWorker.KeyIntervalMinutes, 60) ?? 60);
-        var constraints = new Constraints.Builder()
-            .SetRequiredNetworkType(NetworkType.Connected)
-            .Build();
-        var request = PeriodicWorkRequest.Builder
-            .From<GitHubDownloadWorker>(intervalMinutes, TimeUnit.Minutes)
-            .SetConstraints(constraints)
-            .Build();
-
-        WorkManager.GetInstance(this).EnqueueUniquePeriodicWork(
-            GitHubDownloadWorker.UniqueWorkName,
-            ExistingPeriodicWorkPolicy.Update,
-            request);
-
-        SaveServiceEnabled(true);
-        SetMonitoringUi(true);
-        ShowBatteryOptimizationWarningOnce();
-    }
-
-    private void StopMonitoring()
-    {
-        WorkManager.GetInstance(this).CancelUniqueWork(GitHubDownloadWorker.UniqueWorkName);
-
-        SaveServiceEnabled(false);
-        SetMonitoringUi(false);
-    }
-
-    private void SaveServiceEnabled(bool enabled)
-    {
-        var preferences = GetSharedPreferences(GitHubDownloadWorker.PreferencesName, FileCreationMode.Private);
-        preferences?.Edit()?.PutBoolean(KeyServiceEnabled, enabled)?.Apply();
-    }
-
-    private void ShowBatteryOptimizationWarningOnce()
-    {
-        var preferences = GetSharedPreferences(GitHubDownloadWorker.PreferencesName, FileCreationMode.Private);
-        if (preferences?.GetBoolean(KeyBatteryWarningShown, false) == true)
-        {
-            return;
-        }
-
-        preferences?.Edit()?.PutBoolean(KeyBatteryWarningShown, true)?.Apply();
-
         new AlertDialog.Builder(this)
-            .SetTitle(Resource.String.battery_warning_title)
-            .SetMessage(Resource.String.battery_warning_message)
-            .SetPositiveButton(Resource.String.open_battery_settings, (_, _) => OpenBatteryOptimizationSettings())
-            .SetNegativeButton(Resource.String.continue_button, (_, _) => { })
+            .SetTitle(Resource.String.delete_repository_title)
+            .SetMessage(GetString(Resource.String.delete_repository_message, $"{repository.Owner}/{repository.Name}"))
+            .SetPositiveButton(Resource.String.delete_button, (_, _) => DeleteRepository(repository.Id))
+            .SetNegativeButton(Android.Resource.String.Cancel, (_, _) => { })
             .Show();
     }
 
-    private void OpenBatteryOptimizationSettings()
+    private void DeleteRepository(string repositoryId)
     {
-        try
-        {
-            StartActivity(new Intent(Android.Provider.Settings.ActionIgnoreBatteryOptimizationSettings));
-        }
-        catch (ActivityNotFoundException)
-        {
-            StartActivity(new Intent(Android.Provider.Settings.ActionSettings));
-        }
-    }
-
-    private void UpdateStatusText(bool serviceEnabled)
-    {
-        if (_statusTextView is null)
+        if (_store is null)
         {
             return;
         }
 
-        _statusTextView.Text = serviceEnabled
-            ? GetString(Resource.String.service_running)
-            : GetString(Resource.String.service_stopped);
-    }
-
-    private void SetMonitoringUi(bool enabled)
-    {
-        if (_serviceSwitch is not null)
-        {
-            _updatingServiceSwitch = true;
-            _serviceSwitch.Checked = enabled;
-            _updatingServiceSwitch = false;
-        }
-
-        UpdateStatusText(enabled);
-    }
-
-    private bool NeedsNotificationPermission()
-        => Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu &&
-           CheckSelfPermission(Manifest.Permission.PostNotifications) != Permission.Granted;
-
-    public override void OnRequestPermissionsResult(int requestCode, string[]? permissions, Permission[]? grantResults)
-    {
-        base.OnRequestPermissionsResult(requestCode, permissions, grantResults);
-
-        if (requestCode != NotificationPermissionRequestCode)
-        {
-            return;
-        }
-
-        var granted = grantResults is { Length: > 0 } && grantResults[0] == Permission.Granted;
-        if (granted)
-        {
-            if (_pendingStartMonitoring)
-            {
-                StartMonitoring();
-            }
-
-            if (_pendingTestNotification)
-            {
-                _ = SendTestNotificationAsync();
-            }
-
-            _pendingStartMonitoring = false;
-            _pendingTestNotification = false;
-            return;
-        }
-
-        if (_pendingStartMonitoring)
-        {
-            SaveServiceEnabled(false);
-            SetMonitoringUi(false);
-        }
-
-        _pendingStartMonitoring = false;
-        _pendingTestNotification = false;
-
-        Toast.MakeText(this, Resource.String.notification_permission_required, ToastLength.Short)?.Show();
-    }
-
-    private async Task SendTestNotificationAsync()
-    {
-        var preferences = GetSharedPreferences(GitHubDownloadWorker.PreferencesName, FileCreationMode.Private);
-        var owner = preferences?.GetString(GitHubDownloadWorker.KeyOwner, string.Empty)?.Trim() ?? string.Empty;
-        var repo = preferences?.GetString(GitHubDownloadWorker.KeyRepo, string.Empty)?.Trim() ?? string.Empty;
-        var allReleases = preferences?.GetBoolean(GitHubDownloadWorker.KeyAllReleases, true) ?? true;
-
-        if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(repo))
-        {
-            Toast.MakeText(this, Resource.String.repo_required_message, ToastLength.Short)?.Show();
-            return;
-        }
-
-        Toast.MakeText(this, Resource.String.test_notification_busy, ToastLength.Short)?.Show();
-
-        var currentTotal = await TryGetReleaseDownloadTotalAsync(owner, repo, allReleases);
-        if (!currentTotal.HasValue)
-        {
-            Toast.MakeText(this, Resource.String.test_notification_error, ToastLength.Short)?.Show();
-            return;
-        }
-
-        EnsureTestNotificationChannel();
-
-        var launchIntent = new Intent(this, typeof(MainActivity));
-        launchIntent.SetFlags(ActivityFlags.SingleTop | ActivityFlags.ClearTop);
-        var pendingIntent = PendingIntent.GetActivity(
-            this,
-            101,
-            launchIntent,
-            PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
-
-        var lastTotalKey = BuildLastTotalKey(owner, repo, allReleases);
-        var hasPrevious = preferences?.Contains(lastTotalKey) == true;
-        var previousTotal = preferences?.GetInt(lastTotalKey, currentTotal.Value) ?? currentTotal.Value;
-        var delta = currentTotal.Value - previousTotal;
-
-        var comparisonText = hasPrevious
-            ? delta switch
-            {
-                > 0 => $"(+{delta} since last check)",
-                < 0 => $"({Math.Abs(delta)} lower than last check)",
-                _ => "(no change since last check)"
-            }
-            : "(first comparison)";
-
-        var content = $"{owner}/{repo}: {currentTotal.Value} total downloads {comparisonText}";
-
-        preferences?.Edit()?.PutInt(lastTotalKey, currentTotal.Value)?.Apply();
-
-        var builder = Build.VERSION.SdkInt >= BuildVersionCodes.O
-            ? new Notification.Builder(this, TestChannelId)
-            : new Notification.Builder(this);
-
-        var notification = builder
-            .SetContentTitle(GetString(Resource.String.test_notification_title))
-            .SetContentText(content)
-            .SetSmallIcon(Resource.Mipmap.appicon)
-            .SetContentIntent(pendingIntent)
-            .SetAutoCancel(true)
-            .Build();
-
-        var manager = (NotificationManager?)GetSystemService(NotificationService);
-        manager?.Notify(TestNotificationId, notification);
-    }
-
-    private static string BuildLastTotalKey(string owner, string repo, bool allReleases)
-        => LastTotalPrefix + (allReleases ? "all_" : "latest_") + owner.ToLowerInvariant() + "_" + repo.ToLowerInvariant();
-
-    private async Task<int?> TryGetReleaseDownloadTotalAsync(string owner, string repo, bool allReleases)
-    {
-        using var httpClient = new HttpClient();
-        httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GithubDownloadNotifier", "1.0"));
-        httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-
-        var releasePath = allReleases ? "releases?per_page=100" : "releases/latest";
-        var requestUri = $"https://api.github.com/repos/{Uri.EscapeDataString(owner)}/{Uri.EscapeDataString(repo)}/{releasePath}";
-        using var response = await httpClient.GetAsync(requestUri);
-        if (!response.IsSuccessStatusCode)
-        {
-            return null;
-        }
-
-        await using var stream = await response.Content.ReadAsStreamAsync();
-        using var document = await JsonDocument.ParseAsync(stream);
-
-        if (document.RootElement.ValueKind != JsonValueKind.Array)
-        {
-            return SumReleaseAssetDownloads(document.RootElement);
-        }
-
-        var total = 0;
-        foreach (var release in document.RootElement.EnumerateArray())
-        {
-            total += SumReleaseAssetDownloads(release);
-        }
-
-        return total;
-    }
-
-    private static int SumReleaseAssetDownloads(JsonElement release)
-    {
-        if (!release.TryGetProperty("assets", out var assetsElement) || assetsElement.ValueKind != JsonValueKind.Array)
-        {
-            return 0;
-        }
-
-        var total = 0;
-        foreach (var asset in assetsElement.EnumerateArray())
-        {
-            if (asset.TryGetProperty("download_count", out var downloadCountElement) &&
-                downloadCountElement.TryGetInt32(out var downloadCount))
-            {
-                total += downloadCount;
-            }
-        }
-
-        return total;
-    }
-
-    private void EnsureTestNotificationChannel()
-    {
-        if (Build.VERSION.SdkInt < BuildVersionCodes.O)
-        {
-            return;
-        }
-
-        var manager = (NotificationManager?)GetSystemService(NotificationService);
-        if (manager is null)
-        {
-            return;
-        }
-
-        var channel = new NotificationChannel(
-            TestChannelId,
-            GetString(Resource.String.test_notification_channel_name),
-            NotificationImportance.Default)
-        {
-            Description = GetString(Resource.String.test_notification_channel_description)
-        };
-
-        manager.CreateNotificationChannel(channel);
+        _store.Update(document => document.Repositories.RemoveAll(item => item.Id == repositoryId));
+        _scheduler?.Cancel(repositoryId);
+        RenderRepositories();
     }
 }

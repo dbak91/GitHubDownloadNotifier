@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+	android:layout_width="match_parent"
+	android:layout_height="match_parent"
+	android:fillViewport="true"
+	android:fitsSystemWindows="true">
+
+	<LinearLayout
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:orientation="vertical"
+		android:padding="20dp">
+
+		<TextView
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:text="@string/repository_details_section"
+			android:textAppearance="@android:style/TextAppearance.Material.Headline" />
+
+		<EditText
+			android:id="@+id/repoOwnerEditText"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="12dp"
+			android:hint="@string/repo_owner_hint"
+			android:inputType="text"
+			android:maxLines="1" />
+
+		<EditText
+			android:id="@+id/repoNameEditText"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="8dp"
+			android:hint="@string/repo_name_hint"
+			android:inputType="text"
+			android:maxLines="1" />
+
+		<TextView
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="24dp"
+			android:text="@string/download_watcher_section"
+			android:textAppearance="@android:style/TextAppearance.Material.Headline" />
+
+		<Switch
+			android:id="@+id/downloadEnabledSwitch"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="8dp"
+			android:text="@string/download_watcher_enabled" />
+
+		<TextView
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="12dp"
+			android:text="@string/interval_label" />
+
+		<Spinner
+			android:id="@+id/intervalSpinner"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="6dp" />
+
+		<EditText
+			android:id="@+id/customIntervalEditText"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="6dp"
+			android:hint="@string/custom_interval_hint"
+			android:inputType="number"
+			android:maxLines="1"
+			android:visibility="gone" />
+
+		<Switch
+			android:id="@+id/allReleasesSwitch"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="12dp"
+			android:text="@string/release_scope_all" />
+
+		<Switch
+			android:id="@+id/alwaysNotifySwitch"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="8dp"
+			android:text="@string/notify_updates_only" />
+
+		<Button
+			android:id="@+id/testDownloadButton"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="12dp"
+			android:text="@string/test_notification_button" />
+
+		<TextView
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="24dp"
+			android:text="@string/release_watcher_section"
+			android:textAppearance="@android:style/TextAppearance.Material.Headline" />
+
+		<TextView
+			android:id="@+id/releaseSummaryText"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="8dp"
+			android:text="@string/release_watcher_off" />
+
+		<TextView
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="4dp"
+			android:text="@string/release_watcher_future_message" />
+
+		<Button
+			android:id="@+id/saveRepositoryButton"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="24dp"
+			android:text="@string/save_repository_button" />
+	</LinearLayout>
+</ScrollView>
