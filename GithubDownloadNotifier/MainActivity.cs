@@ -4,6 +4,8 @@ using Android.Content;
 using Android.Content.PM;
 using Android.OS;
 using Android.Widget;
+using AndroidX.Work;
+using Java.Util.Concurrent;
 using System.Net.Http.Headers;
 using System.Text.Json;
 
@@ -12,10 +14,11 @@ namespace GithubDownloadNotifier;
 [Activity(Label = "@string/app_name", MainLauncher = true)]
 public class MainActivity : Activity
 {
-    private static readonly int[] IntervalValues = [5, 30, 60, 720, 1440];
+    private static readonly int[] IntervalValues = [15, 30, 60, 720, 1440];
 
     private const int NotificationPermissionRequestCode = 100;
     private const string KeyServiceEnabled = "service_enabled";
+    private const string KeyBatteryWarningShown = "battery_warning_shown";
     private const string TestChannelId = "manual_test_channel";
     private const int TestNotificationId = 2001;
     private const string LastTotalPrefix = "last_total_";
@@ -118,12 +121,12 @@ public class MainActivity : Activity
 
     private void LoadSettings()
     {
-        var preferences = GetSharedPreferences(GitHubDownloadCheckService.PreferencesName, FileCreationMode.Private);
-        var owner = preferences?.GetString(GitHubDownloadCheckService.KeyOwner, string.Empty) ?? string.Empty;
-        var repo = preferences?.GetString(GitHubDownloadCheckService.KeyRepo, string.Empty) ?? string.Empty;
-        var interval = preferences?.GetInt(GitHubDownloadCheckService.KeyIntervalMinutes, 60) ?? 60;
-        var allReleases = preferences?.GetBoolean(GitHubDownloadCheckService.KeyAllReleases, true) ?? true;
-        var alwaysNotify = preferences?.GetBoolean(GitHubDownloadCheckService.KeyAlwaysNotify, false) ?? false;
+        var preferences = GetSharedPreferences(GitHubDownloadWorker.PreferencesName, FileCreationMode.Private);
+        var owner = preferences?.GetString(GitHubDownloadWorker.KeyOwner, string.Empty) ?? string.Empty;
+        var repo = preferences?.GetString(GitHubDownloadWorker.KeyRepo, string.Empty) ?? string.Empty;
+        var interval = Math.Max(15, preferences?.GetInt(GitHubDownloadWorker.KeyIntervalMinutes, 60) ?? 60);
+        var allReleases = preferences?.GetBoolean(GitHubDownloadWorker.KeyAllReleases, true) ?? true;
+        var alwaysNotify = preferences?.GetBoolean(GitHubDownloadWorker.KeyAlwaysNotify, false) ?? false;
         var serviceEnabled = preferences?.GetBoolean(KeyServiceEnabled, false) ?? false;
 
         if (_repoOwnerEditText is not null)
@@ -173,13 +176,13 @@ public class MainActivity : Activity
             return false;
         }
 
-        var preferences = GetSharedPreferences(GitHubDownloadCheckService.PreferencesName, FileCreationMode.Private);
+        var preferences = GetSharedPreferences(GitHubDownloadWorker.PreferencesName, FileCreationMode.Private);
         preferences?.Edit()
-            ?.PutString(GitHubDownloadCheckService.KeyOwner, owner)
-            ?.PutString(GitHubDownloadCheckService.KeyRepo, repo)
-            ?.PutInt(GitHubDownloadCheckService.KeyIntervalMinutes, intervalMinutes)
-            ?.PutBoolean(GitHubDownloadCheckService.KeyAllReleases, _allReleasesSwitch?.Checked ?? true)
-            ?.PutBoolean(GitHubDownloadCheckService.KeyAlwaysNotify, _alwaysNotifySwitch?.Checked ?? false)
+            ?.PutString(GitHubDownloadWorker.KeyOwner, owner)
+            ?.PutString(GitHubDownloadWorker.KeyRepo, repo)
+            ?.PutInt(GitHubDownloadWorker.KeyIntervalMinutes, intervalMinutes)
+            ?.PutBoolean(GitHubDownloadWorker.KeyAllReleases, _allReleasesSwitch?.Checked ?? true)
+            ?.PutBoolean(GitHubDownloadWorker.KeyAlwaysNotify, _alwaysNotifySwitch?.Checked ?? false)
             ?.Apply();
 
         return true;
@@ -204,7 +207,7 @@ public class MainActivity : Activity
 
         var labels = new[]
         {
-            GetString(Resource.String.interval_5_minutes),
+            GetString(Resource.String.interval_15_minutes),
             GetString(Resource.String.interval_30_minutes),
             GetString(Resource.String.interval_1_hour),
             GetString(Resource.String.interval_12_hours),
@@ -256,7 +259,7 @@ public class MainActivity : Activity
             return true;
         }
 
-        return int.TryParse(_customIntervalEditText?.Text?.Trim(), out intervalMinutes) && intervalMinutes > 0;
+        return int.TryParse(_customIntervalEditText?.Text?.Trim(), out intervalMinutes) && intervalMinutes >= 15;
     }
 
     private void UpdateReleaseScopeText(bool allReleases)
@@ -289,31 +292,35 @@ public class MainActivity : Activity
 
     private void ApplySettingsAndEnsureMonitoring()
     {
-        StopService(new Intent(this, typeof(GitHubDownloadCheckService)));
+        WorkManager.GetInstance(this).CancelUniqueWork(GitHubDownloadWorker.UniqueWorkName);
         StartMonitoringWithValidation();
     }
 
     private void StartMonitoring()
     {
-        var serviceIntent = new Intent(this, typeof(GitHubDownloadCheckService));
+        var preferences = GetSharedPreferences(GitHubDownloadWorker.PreferencesName, FileCreationMode.Private);
+        var intervalMinutes = Math.Max(15, preferences?.GetInt(GitHubDownloadWorker.KeyIntervalMinutes, 60) ?? 60);
+        var constraints = new Constraints.Builder()
+            .SetRequiredNetworkType(NetworkType.Connected)
+            .Build();
+        var request = PeriodicWorkRequest.Builder
+            .From<GitHubDownloadWorker>(intervalMinutes, TimeUnit.Minutes)
+            .SetConstraints(constraints)
+            .Build();
 
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.O)
-        {
-            StartForegroundService(serviceIntent);
-        }
-        else
-        {
-            StartService(serviceIntent);
-        }
+        WorkManager.GetInstance(this).EnqueueUniquePeriodicWork(
+            GitHubDownloadWorker.UniqueWorkName,
+            ExistingPeriodicWorkPolicy.Update,
+            request);
 
         SaveServiceEnabled(true);
         SetMonitoringUi(true);
+        ShowBatteryOptimizationWarningOnce();
     }
 
     private void StopMonitoring()
     {
-        var serviceIntent = new Intent(this, typeof(GitHubDownloadCheckService));
-        StopService(serviceIntent);
+        WorkManager.GetInstance(this).CancelUniqueWork(GitHubDownloadWorker.UniqueWorkName);
 
         SaveServiceEnabled(false);
         SetMonitoringUi(false);
@@ -321,8 +328,38 @@ public class MainActivity : Activity
 
     private void SaveServiceEnabled(bool enabled)
     {
-        var preferences = GetSharedPreferences(GitHubDownloadCheckService.PreferencesName, FileCreationMode.Private);
+        var preferences = GetSharedPreferences(GitHubDownloadWorker.PreferencesName, FileCreationMode.Private);
         preferences?.Edit()?.PutBoolean(KeyServiceEnabled, enabled)?.Apply();
+    }
+
+    private void ShowBatteryOptimizationWarningOnce()
+    {
+        var preferences = GetSharedPreferences(GitHubDownloadWorker.PreferencesName, FileCreationMode.Private);
+        if (preferences?.GetBoolean(KeyBatteryWarningShown, false) == true)
+        {
+            return;
+        }
+
+        preferences?.Edit()?.PutBoolean(KeyBatteryWarningShown, true)?.Apply();
+
+        new AlertDialog.Builder(this)
+            .SetTitle(Resource.String.battery_warning_title)
+            .SetMessage(Resource.String.battery_warning_message)
+            .SetPositiveButton(Resource.String.open_battery_settings, (_, _) => OpenBatteryOptimizationSettings())
+            .SetNegativeButton(Resource.String.continue_button, (_, _) => { })
+            .Show();
+    }
+
+    private void OpenBatteryOptimizationSettings()
+    {
+        try
+        {
+            StartActivity(new Intent(Android.Provider.Settings.ActionIgnoreBatteryOptimizationSettings));
+        }
+        catch (ActivityNotFoundException)
+        {
+            StartActivity(new Intent(Android.Provider.Settings.ActionSettings));
+        }
     }
 
     private void UpdateStatusText(bool serviceEnabled)
@@ -394,10 +431,10 @@ public class MainActivity : Activity
 
     private async Task SendTestNotificationAsync()
     {
-        var preferences = GetSharedPreferences(GitHubDownloadCheckService.PreferencesName, FileCreationMode.Private);
-        var owner = preferences?.GetString(GitHubDownloadCheckService.KeyOwner, string.Empty)?.Trim() ?? string.Empty;
-        var repo = preferences?.GetString(GitHubDownloadCheckService.KeyRepo, string.Empty)?.Trim() ?? string.Empty;
-        var allReleases = preferences?.GetBoolean(GitHubDownloadCheckService.KeyAllReleases, true) ?? true;
+        var preferences = GetSharedPreferences(GitHubDownloadWorker.PreferencesName, FileCreationMode.Private);
+        var owner = preferences?.GetString(GitHubDownloadWorker.KeyOwner, string.Empty)?.Trim() ?? string.Empty;
+        var repo = preferences?.GetString(GitHubDownloadWorker.KeyRepo, string.Empty)?.Trim() ?? string.Empty;
+        var allReleases = preferences?.GetBoolean(GitHubDownloadWorker.KeyAllReleases, true) ?? true;
 
         if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(repo))
         {

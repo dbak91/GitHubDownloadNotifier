@@ -20,7 +20,7 @@ The first successful check establishes a comparison baseline. Later checks compa
 
 Available intervals are:
 
-- 5 minutes
+- 15 minutes
 - 30 minutes
 - 1 hour
 - 12 hours
@@ -39,7 +39,7 @@ Separate comparison baselines are maintained for each scope, so changing scope d
 - **Only show when downloads increase** sends a notification only when the current total is greater than the previous total.
 - **Always show each check** reports every successful scheduled check, including no-change and first-check results.
 
-The foreground service displays a low-priority persistent notification while monitoring is enabled. Failed checks do not produce download-update notifications.
+WorkManager runs checks in the background without a persistent monitoring notification. Failed checks are retried and do not produce download-update notifications.
 
 ## Test Now
 
@@ -62,7 +62,7 @@ Notification permission is requested when background monitoring is first enabled
 
 ## Service lifetime
 
-Monitoring uses an Android foreground service. It does not currently register a boot receiver, so monitoring is not automatically restarted after the device reboots.
+Monitoring uses Android WorkManager. Android may delay checks to optimize battery use, and periodic intervals have a minimum of 15 minutes. WorkManager preserves scheduled work across app process and device restarts without a custom boot receiver. The app displays a one-time warning with a shortcut to Android battery optimization settings when monitoring is first enabled.
 
 ## GitHub API considerations
 

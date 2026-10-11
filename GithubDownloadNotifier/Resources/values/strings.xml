@@ -6,7 +6,7 @@
     <string name="repo_name_label">Repository name</string>
     <string name="repo_name_hint">Repository name (e.g. runtime)</string>
     <string name="interval_label">Check interval</string>
-    <string name="interval_5_minutes">5 minutes</string>
+    <string name="interval_15_minutes">15 minutes</string>
     <string name="interval_30_minutes">30 minutes</string>
     <string name="interval_1_hour">1 hour</string>
     <string name="interval_12_hours">12 hours</string>
@@ -24,9 +24,12 @@
     <string name="service_stopped">Service stopped</string>
     <string name="settings_saved">Settings saved</string>
     <string name="repo_required_message">Repository owner and name are required.</string>
-    <string name="interval_invalid_message">Enter a valid interval in minutes.</string>
+    <string name="interval_invalid_message">Enter an interval of at least 15 minutes.</string>
     <string name="notification_permission_required">Notification permission is required to send alerts.</string>
-    <string name="monitoring_notification_title">GitHub download monitor active</string>
+    <string name="battery_warning_title">Battery optimization may delay checks</string>
+    <string name="battery_warning_message">Android may delay scheduled GitHub checks to save battery. You can review battery optimization settings for this app, but checks are never guaranteed to run at an exact time.</string>
+    <string name="open_battery_settings">Open battery settings</string>
+    <string name="continue_button">Continue</string>
     <string name="test_notification_channel_name">Manual tests</string>
     <string name="test_notification_channel_description">Manual notification checks with current GitHub download totals.</string>
     <string name="test_notification_title">Current download total</string>
