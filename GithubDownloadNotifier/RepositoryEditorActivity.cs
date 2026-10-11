@@ -182,6 +182,10 @@ public sealed class RepositoryEditorActivity : Activity
         {
             return;
         }
+        if (!IsWithinApiRequestBudget())
+        {
+            return;
+        }
 
         if ((_configuration!.Download.Enabled || _configuration.Release.Enabled) && NeedsNotificationPermission())
         {
@@ -191,6 +195,41 @@ public sealed class RepositoryEditorActivity : Activity
         }
 
         SaveAndFinish();
+    }
+
+    private bool IsWithinApiRequestBudget()
+    {
+        var document = _store!.Load();
+        var index = document.Repositories.FindIndex(item => item.Id == _configuration!.Id);
+        if (index >= 0)
+        {
+            document.Repositories[index] = _configuration;
+        }
+        else
+        {
+            document.Repositories.Add(_configuration!);
+        }
+
+        if (document.Repositories.Count < ApiRequestBudgetCalculator.MinimumRepositoryCountForProjection)
+        {
+            return true;
+        }
+
+        var result = ApiRequestBudgetCalculator.Calculate(document, DateTimeOffset.UtcNow, TimeZoneInfo.Local);
+        if (result.IsWithinBudget(ApiRequestBudgetCalculator.ScheduledRequestsPerHourBudget))
+        {
+            return true;
+        }
+
+        new AlertDialog.Builder(this)
+            .SetTitle(Resource.String.api_budget_exceeded_title)
+            .SetMessage(GetString(
+                Resource.String.api_budget_exceeded_message,
+                result.PeakRequests,
+                ApiRequestBudgetCalculator.ScheduledRequestsPerHourBudget))
+            .SetPositiveButton(Android.Resource.String.Ok, (_, _) => { })
+            .Show();
+        return false;
     }
 
     private void SaveAndFinish()

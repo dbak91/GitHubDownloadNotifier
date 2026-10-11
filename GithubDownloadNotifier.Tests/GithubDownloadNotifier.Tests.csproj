@@ -16,6 +16,7 @@
 	<Compile Include="..\GithubDownloadNotifier\Models\WatcherJsonContext.cs" Link="Models\WatcherJsonContext.cs" />
 	<Compile Include="..\GithubDownloadNotifier\Services\LegacySettingsMigrator.cs" Link="Services\LegacySettingsMigrator.cs" />
 	<Compile Include="..\GithubDownloadNotifier\Services\ScheduleCalculator.cs" Link="Services\ScheduleCalculator.cs" />
+	<Compile Include="..\GithubDownloadNotifier\Services\ApiRequestBudgetCalculator.cs" Link="Services\ApiRequestBudgetCalculator.cs" />
 	<Compile Include="..\GithubDownloadNotifier\Services\WatcherStore.cs" Link="Services\WatcherStore.cs" />
 	<Compile Include="..\GithubDownloadNotifier\Services\WatcherLogFormatter.cs" Link="Services\WatcherLogFormatter.cs" />
   </ItemGroup>

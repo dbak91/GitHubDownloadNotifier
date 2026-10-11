@@ -88,6 +88,8 @@ The dashboard includes an optional **Restart monitoring after device reboot** se
 
 The app currently uses unauthenticated GitHub API requests. GitHub rate limits therefore apply. Very large repositories with more than 100 releases are limited to the first API page when **All Releases** is selected.
 
+To preserve capacity under GitHub's unauthenticated limit, configurations with more than 15 repositories are projected before saving. Saves are blocked when the complete configuration could schedule more than 100 requests in any rolling 60-minute window. The projection considers all enabled download and release watchers, intervals, and configured run-at times. Existing settings keep running, but cannot be saved again while the proposed configuration exceeds the budget. Manual **Test now** requests are not included or blocked.
+
 ## Build and publish
 
 Build the project with the .NET 10 Android workload installed:

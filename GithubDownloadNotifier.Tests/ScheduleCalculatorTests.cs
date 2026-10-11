@@ -16,6 +16,18 @@ public sealed class ScheduleCalculatorTests
     }
 
     [Fact]
+    public void MinutesContinueFromLastScheduledOccurrence()
+    {
+        var now = new DateTimeOffset(2026, 10, 11, 10, 20, 0, TimeSpan.Zero);
+        var schedule = WatchSchedule.Minutes(15);
+        schedule.LastScheduledUtc = new DateTimeOffset(2026, 10, 11, 10, 0, 0, TimeSpan.Zero);
+
+        var next = ScheduleCalculator.GetNextRun(now, schedule, TimeZoneInfo.Utc);
+
+        Assert.Equal(new DateTimeOffset(2026, 10, 11, 10, 30, 0, TimeSpan.Zero), next);
+    }
+
+    [Fact]
     public void DaysUseConfiguredLocalTime()
     {
         var now = new DateTimeOffset(2026, 10, 11, 10, 30, 0, TimeSpan.Zero);
