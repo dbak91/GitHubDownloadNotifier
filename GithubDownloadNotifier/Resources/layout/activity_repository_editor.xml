@@ -35,10 +35,17 @@
 			android:inputType="text"
 			android:maxLines="1" />
 
+		<LinearLayout
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="20dp"
+			android:background="@drawable/download_section_background"
+			android:orientation="vertical"
+			android:padding="16dp">
+
 		<TextView
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
-			android:layout_marginTop="24dp"
 			android:text="@string/download_watcher_section"
 			android:textAppearance="@android:style/TextAppearance.Material.Headline" />
 
@@ -112,11 +119,19 @@
 			android:layout_height="wrap_content"
 			android:layout_marginTop="12dp"
 			android:text="@string/test_notification_button" />
+		</LinearLayout>
+
+		<LinearLayout
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="16dp"
+			android:background="@drawable/release_section_background"
+			android:orientation="vertical"
+			android:padding="16dp">
 
 		<TextView
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
-			android:layout_marginTop="24dp"
 			android:text="@string/release_watcher_section"
 			android:textAppearance="@android:style/TextAppearance.Material.Headline" />
 
@@ -141,6 +156,7 @@
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
 			android:layout_marginTop="6dp" />
+		</LinearLayout>
 
 		<EditText
 			android:id="@+id/customReleaseDaysEditText"
