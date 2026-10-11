@@ -41,6 +41,7 @@
     <string name="repositories_title">Repositories</string>
     <string name="repositories_description">Configure download and release watchers separately for each repository.</string>
     <string name="add_repository_button">Add repository</string>
+    <string name="boot_persistence">Restart monitoring after device reboot</string>
     <string name="no_repositories_message">No repositories configured.</string>
     <string name="edit_button">Edit</string>
     <string name="delete_button">Delete</string>
@@ -61,5 +62,12 @@
     <string name="custom_days_hint">Number of days</string>
     <string name="release_tag_required_message">Enter the current release tag.</string>
     <string name="release_interval_invalid_message">Enter at least 1 day.</string>
+    <string name="log_each_interval">Log each scheduled check</string>
+    <string name="choose_log_file">Create or choose CSV file</string>
+    <string name="choose_log_fields">Choose logged statistics</string>
+    <string name="no_log_file_selected">No log file selected</string>
+    <string name="log_file_required_message">Choose a log file before enabling logging.</string>
+    <string name="log_fields_required_message">Choose at least one statistic to log.</string>
+    <string name="log_fields_title">Logged statistics</string>
     <string name="save_repository_button">Save repository</string>
 </resources>

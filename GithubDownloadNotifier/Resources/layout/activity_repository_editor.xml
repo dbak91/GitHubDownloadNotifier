@@ -119,6 +119,40 @@
 			android:layout_height="wrap_content"
 			android:layout_marginTop="12dp"
 			android:text="@string/test_notification_button" />
+
+		<Switch
+			android:id="@+id/downloadLoggingSwitch"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="12dp"
+			android:text="@string/log_each_interval" />
+
+		<LinearLayout
+			android:id="@+id/downloadLoggingOptions"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:orientation="vertical"
+			android:visibility="gone">
+
+			<TextView
+				android:id="@+id/downloadLogFileText"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="6dp"
+				android:text="@string/no_log_file_selected" />
+
+			<Button
+				android:id="@+id/downloadLogFileButton"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:text="@string/choose_log_file" />
+
+			<Button
+				android:id="@+id/downloadLogFieldsButton"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:text="@string/choose_log_fields" />
+		</LinearLayout>
 		</LinearLayout>
 
 		<LinearLayout
@@ -156,7 +190,6 @@
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
 			android:layout_marginTop="6dp" />
-		</LinearLayout>
 
 		<EditText
 			android:id="@+id/customReleaseDaysEditText"
@@ -173,6 +206,41 @@
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
 			android:layout_marginTop="6dp" />
+
+		<Switch
+			android:id="@+id/releaseLoggingSwitch"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="12dp"
+			android:text="@string/log_each_interval" />
+
+		<LinearLayout
+			android:id="@+id/releaseLoggingOptions"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:orientation="vertical"
+			android:visibility="gone">
+
+			<TextView
+				android:id="@+id/releaseLogFileText"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="6dp"
+				android:text="@string/no_log_file_selected" />
+
+			<Button
+				android:id="@+id/releaseLogFileButton"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:text="@string/choose_log_file" />
+
+			<Button
+				android:id="@+id/releaseLogFieldsButton"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:text="@string/choose_log_fields" />
+		</LinearLayout>
+		</LinearLayout>
 
 		<Button
 			android:id="@+id/saveRepositoryButton"

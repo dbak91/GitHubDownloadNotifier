@@ -36,6 +36,12 @@ The release watcher compares GitHub's latest release tag with the configured cur
 
 Download and release watchers have independent schedules and WorkManager jobs for each repository.
 
+## Interval logging
+
+Download and release watchers can independently append a CSV record after every scheduled check, including failed checks. Enable logging in the relevant watcher panel, create or choose a CSV document through Android's file picker, and select the statistics to include.
+
+Available statistics include timestamps, repository and status details, download totals and deltas, release tags and metadata, and errors. The selected columns are written in the configured order. Manual **Test now** checks do not write log records.
+
 ## Release scope
 
 - **All Releases** sums the `download_count` values of release assets across up to the latest 100 GitHub releases.
@@ -72,6 +78,8 @@ Notification permission is requested when background monitoring is first enabled
 ## Service lifetime
 
 Monitoring uses chained one-time Android WorkManager jobs. Android may delay checks to optimize battery use, minute intervals have a minimum of 15 minutes, and day run-at times are targets rather than exact alarms. WorkManager preserves scheduled work across app process and device restarts without a custom boot receiver. The app displays a one-time warning with a shortcut to Android battery optimization settings when monitoring is first enabled.
+
+The dashboard includes an optional **Restart monitoring after device reboot** setting. When enabled, Android silently restores enabled download and release schedules after boot; it does not open the app or send a boot notification.
 
 ## GitHub API considerations
 
