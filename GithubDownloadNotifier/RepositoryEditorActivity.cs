@@ -31,14 +31,21 @@ public sealed class RepositoryEditorActivity : Activity
     private Button? _runAtTimeButton;
     private Switch? _allReleasesSwitch;
     private Switch? _alwaysNotifySwitch;
-    private TextView? _releaseSummaryText;
+    private Switch? _releaseEnabledSwitch;
+    private EditText? _currentTagEditText;
+    private Spinner? _releaseIntervalSpinner;
+    private EditText? _customReleaseDaysEditText;
+    private Button? _releaseRunAtTimeButton;
     private WatcherStore? _store;
     private DownloadWorkScheduler? _scheduler;
+    private ReleaseWorkScheduler? _releaseScheduler;
     private RepositoryWatchConfiguration? _configuration;
     private bool _saveAfterPermission;
     private bool _testAfterPermission;
     private int _runAtHour = DateTime.Now.Hour;
     private int _runAtMinute = DateTime.Now.Minute;
+    private int _releaseRunAtHour = DateTime.Now.Hour;
+    private int _releaseRunAtMinute = DateTime.Now.Minute;
 
     protected override void OnCreate(Bundle? savedInstanceState)
     {
@@ -55,17 +62,24 @@ public sealed class RepositoryEditorActivity : Activity
         _runAtTimeButton = FindViewById<Button>(Resource.Id.runAtTimeButton);
         _allReleasesSwitch = FindViewById<Switch>(Resource.Id.allReleasesSwitch);
         _alwaysNotifySwitch = FindViewById<Switch>(Resource.Id.alwaysNotifySwitch);
-        _releaseSummaryText = FindViewById<TextView>(Resource.Id.releaseSummaryText);
+        _releaseEnabledSwitch = FindViewById<Switch>(Resource.Id.releaseEnabledSwitch);
+        _currentTagEditText = FindViewById<EditText>(Resource.Id.currentTagEditText);
+        _releaseIntervalSpinner = FindViewById<Spinner>(Resource.Id.releaseIntervalSpinner);
+        _customReleaseDaysEditText = FindViewById<EditText>(Resource.Id.customReleaseDaysEditText);
+        _releaseRunAtTimeButton = FindViewById<Button>(Resource.Id.releaseRunAtTimeButton);
         _store = new WatcherStore(FilesDir!.AbsolutePath);
         _scheduler = new DownloadWorkScheduler(this);
+        _releaseScheduler = new ReleaseWorkScheduler(this);
 
         ConfigureIntervalSpinner();
         ConfigureUnitSpinner();
+        ConfigureReleaseIntervalSpinner();
         LoadConfiguration();
 
         _allReleasesSwitch!.CheckedChange += (_, args) => UpdateScopeText(args.IsChecked);
         _alwaysNotifySwitch!.CheckedChange += (_, args) => UpdateNotificationText(args.IsChecked);
         _runAtTimeButton!.Click += (_, _) => ShowTimePicker();
+        _releaseRunAtTimeButton!.Click += (_, _) => ShowReleaseTimePicker();
         FindViewById<Button>(Resource.Id.saveRepositoryButton)!.Click += (_, _) => BeginSave();
         FindViewById<Button>(Resource.Id.testDownloadButton)!.Click += async (_, _) => await BeginTestAsync();
     }
@@ -100,6 +114,22 @@ public sealed class RepositoryEditorActivity : Activity
         _customIntervalUnitSpinner.ItemSelected += (_, _) => UpdateScheduleControls();
     }
 
+    private void ConfigureReleaseIntervalSpinner()
+    {
+        var labels = new[]
+        {
+            GetString(Resource.String.release_interval_1_day),
+            GetString(Resource.String.release_interval_3_days),
+            GetString(Resource.String.release_interval_7_days),
+            GetString(Resource.String.release_interval_1_month),
+            GetString(Resource.String.release_interval_custom_days)
+        };
+        var adapter = new ArrayAdapter<string>(this, Android.Resource.Layout.SimpleSpinnerItem, labels);
+        adapter.SetDropDownViewResource(Android.Resource.Layout.SimpleSpinnerDropDownItem);
+        _releaseIntervalSpinner!.Adapter = adapter;
+        _releaseIntervalSpinner.ItemSelected += (_, _) => UpdateReleaseScheduleControls();
+    }
+
     private void LoadConfiguration()
     {
         var repositoryId = Intent?.GetStringExtra(RepositoryIdExtra);
@@ -115,9 +145,9 @@ public sealed class RepositoryEditorActivity : Activity
         SelectInterval(_configuration.Download.Schedule);
         UpdateScopeText(_allReleasesSwitch.Checked);
         UpdateNotificationText(_alwaysNotifySwitch.Checked);
-        _releaseSummaryText!.Text = _configuration.Release.Enabled
-            ? GetString(Resource.String.release_watcher_on)
-            : GetString(Resource.String.release_watcher_off);
+        _releaseEnabledSwitch!.Checked = _configuration.Release.Enabled;
+        _currentTagEditText!.Text = _configuration.Release.PendingTag ?? _configuration.Release.CurrentTag;
+        SelectReleaseInterval(_configuration.Release.Schedule);
     }
 
     private void BeginSave()
@@ -127,7 +157,7 @@ public sealed class RepositoryEditorActivity : Activity
             return;
         }
 
-        if (_configuration!.Download.Enabled && NeedsNotificationPermission())
+        if ((_configuration!.Download.Enabled || _configuration.Release.Enabled) && NeedsNotificationPermission())
         {
             _saveAfterPermission = true;
             RequestPermissions([Manifest.Permission.PostNotifications], NotificationPermissionRequestCode);
@@ -159,9 +189,17 @@ public sealed class RepositoryEditorActivity : Activity
         {
             _scheduler!.Cancel(_configuration.Id);
         }
+        if (_configuration.Release.Enabled)
+        {
+            _releaseScheduler!.Schedule(_configuration);
+        }
+        else
+        {
+            _releaseScheduler!.Cancel(_configuration.Id);
+        }
 
         Toast.MakeText(this, Resource.String.settings_saved, ToastLength.Short)?.Show();
-        if (!_configuration.Download.Enabled || !ShowBatteryOptimizationWarningOnce())
+        if ((!_configuration.Download.Enabled && !_configuration.Release.Enabled) || !ShowBatteryOptimizationWarningOnce())
         {
             Finish();
         }
@@ -177,6 +215,19 @@ public sealed class RepositoryEditorActivity : Activity
             return false;
         }
 
+        var releaseEnabled = _releaseEnabledSwitch?.Checked == true;
+        var currentTag = _currentTagEditText?.Text?.Trim() ?? string.Empty;
+        if (releaseEnabled && string.IsNullOrWhiteSpace(currentTag))
+        {
+            Toast.MakeText(this, Resource.String.release_tag_required_message, ToastLength.Short)?.Show();
+            return false;
+        }
+        if (!TryGetReleaseSchedule(out var releaseSchedule))
+        {
+            Toast.MakeText(this, Resource.String.release_interval_invalid_message, ToastLength.Short)?.Show();
+            return false;
+        }
+
         if (!TryGetSchedule(out var schedule))
         {
             Toast.MakeText(this, Resource.String.interval_invalid_message, ToastLength.Short)?.Show();
@@ -186,6 +237,10 @@ public sealed class RepositoryEditorActivity : Activity
         if (SchedulesMatch(_configuration!.Download.Schedule, schedule))
         {
             schedule.LastScheduledUtc = _configuration.Download.Schedule.LastScheduledUtc;
+        }
+        if (SchedulesMatch(_configuration.Release.Schedule, releaseSchedule))
+        {
+            releaseSchedule.LastScheduledUtc = _configuration.Release.Schedule.LastScheduledUtc;
         }
 
         _configuration.Owner = owner;
@@ -198,6 +253,13 @@ public sealed class RepositoryEditorActivity : Activity
             ? NotificationMode.EveryCheck
             : NotificationMode.ChangesOnly;
         _configuration.Download.Schedule = schedule;
+        _configuration.Release.Enabled = releaseEnabled;
+        if (!string.Equals(_configuration.Release.CurrentTag, currentTag, StringComparison.OrdinalIgnoreCase))
+        {
+            _configuration.Release.PendingTag = null;
+        }
+        _configuration.Release.CurrentTag = currentTag;
+        _configuration.Release.Schedule = releaseSchedule;
         return true;
     }
 
@@ -347,6 +409,56 @@ public sealed class RepositoryEditorActivity : Activity
            left.Amount == right.Amount &&
            left.RunAtHour == right.RunAtHour &&
            left.RunAtMinute == right.RunAtMinute;
+
+    private void SelectReleaseInterval(WatchSchedule schedule)
+    {
+        var selected = schedule.Unit == ScheduleUnit.Months
+            ? 3
+            : schedule.Amount switch { 1 => 0, 3 => 1, 7 => 2, _ => 4 };
+        _releaseIntervalSpinner!.SetSelection(selected);
+        _customReleaseDaysEditText!.Text = schedule.Amount.ToString();
+        _releaseRunAtHour = schedule.RunAtHour;
+        _releaseRunAtMinute = schedule.RunAtMinute;
+        UpdateReleaseScheduleControls();
+    }
+
+    private bool TryGetReleaseSchedule(out WatchSchedule schedule)
+    {
+        var runAt = new TimeSpan(_releaseRunAtHour, _releaseRunAtMinute, 0);
+        switch (_releaseIntervalSpinner?.SelectedItemPosition)
+        {
+            case 0: schedule = WatchSchedule.Days(1, runAt); return true;
+            case 1: schedule = WatchSchedule.Days(3, runAt); return true;
+            case 2: schedule = WatchSchedule.Days(7, runAt); return true;
+            case 3: schedule = WatchSchedule.Months(1, runAt, DateTime.Now.Day); return true;
+            default:
+                if (int.TryParse(_customReleaseDaysEditText?.Text?.Trim(), out var days) && days >= 1)
+                {
+                    schedule = WatchSchedule.Days(days, runAt);
+                    return true;
+                }
+                schedule = WatchSchedule.Days(1, runAt);
+                return false;
+        }
+    }
+
+    private void UpdateReleaseScheduleControls()
+    {
+        _customReleaseDaysEditText!.Visibility = _releaseIntervalSpinner?.SelectedItemPosition == 4
+            ? Android.Views.ViewStates.Visible
+            : Android.Views.ViewStates.Gone;
+        _releaseRunAtTimeButton!.Text = GetString(
+            Resource.String.run_at_time,
+            DateTime.Today.AddHours(_releaseRunAtHour).AddMinutes(_releaseRunAtMinute).ToString("t"));
+    }
+
+    private void ShowReleaseTimePicker()
+        => new TimePickerDialog(this, (_, args) =>
+        {
+            _releaseRunAtHour = args.HourOfDay;
+            _releaseRunAtMinute = args.Minute;
+            UpdateReleaseScheduleControls();
+        }, _releaseRunAtHour, _releaseRunAtMinute, false).Show();
 
     private void UpdateScopeText(bool allReleases)
         => _allReleasesSwitch!.Text = GetString(allReleases

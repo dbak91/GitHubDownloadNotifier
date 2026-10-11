@@ -51,8 +51,15 @@
     <string name="download_watcher_section">Download watcher</string>
     <string name="download_watcher_enabled">Enable download watcher</string>
     <string name="release_watcher_section">Release watcher</string>
-    <string name="release_watcher_on">Release watcher enabled</string>
-    <string name="release_watcher_off">Release watcher disabled</string>
-    <string name="release_watcher_future_message">Release watcher configuration is added in the dedicated release-watcher change.</string>
+    <string name="release_watcher_enabled">Enable release watcher</string>
+    <string name="current_tag_hint">Current release tag (e.g. v1.0.0)</string>
+    <string name="release_interval_1_day">Every day</string>
+    <string name="release_interval_3_days">Every 3 days</string>
+    <string name="release_interval_7_days">Every 7 days</string>
+    <string name="release_interval_1_month">Every month</string>
+    <string name="release_interval_custom_days">Custom days</string>
+    <string name="custom_days_hint">Number of days</string>
+    <string name="release_tag_required_message">Enter the current release tag.</string>
+    <string name="release_interval_invalid_message">Enter at least 1 day.</string>
     <string name="save_repository_button">Save repository</string>
 </resources>

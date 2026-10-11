@@ -18,6 +18,7 @@ public sealed class MainActivity : Activity
     private TextView? _emptyText;
     private WatcherStore? _store;
     private DownloadWorkScheduler? _scheduler;
+    private ReleaseWorkScheduler? _releaseScheduler;
 
     protected override void OnCreate(Bundle? savedInstanceState)
     {
@@ -28,6 +29,7 @@ public sealed class MainActivity : Activity
         _emptyText = FindViewById<TextView>(Resource.Id.emptyTextView);
         _store = new WatcherStore(FilesDir!.AbsolutePath);
         _scheduler = new DownloadWorkScheduler(this);
+        _releaseScheduler = new ReleaseWorkScheduler(this);
         WorkManager.GetInstance(this).CancelUniqueWork("github_download_monitor");
 
         var addButton = FindViewById<Button>(Resource.Id.addRepositoryButton);
@@ -104,7 +106,9 @@ public sealed class MainActivity : Activity
         var download = repository.Download.Enabled
             ? $"Downloads: on, {FormatSchedule(repository.Download.Schedule)}"
             : "Downloads: off";
-        var release = repository.Release.Enabled ? "Releases: on" : "Releases: off";
+        var release = repository.Release.Enabled
+            ? $"Releases: on, {FormatSchedule(repository.Release.Schedule)}"
+            : "Releases: off";
         return $"{download}  •  {release}";
     }
 
@@ -112,6 +116,8 @@ public sealed class MainActivity : Activity
         => schedule.Unit switch
         {
             ScheduleUnit.Days => $"every {schedule.Amount} {(schedule.Amount == 1 ? "day" : "days")} at " +
+                DateTime.Today.AddHours(schedule.RunAtHour).AddMinutes(schedule.RunAtMinute).ToString("t"),
+            ScheduleUnit.Months => $"every month at " +
                 DateTime.Today.AddHours(schedule.RunAtHour).AddMinutes(schedule.RunAtMinute).ToString("t"),
             _ => $"every {schedule.Amount} min"
         };
@@ -146,6 +152,7 @@ public sealed class MainActivity : Activity
 
         _store.Update(document => document.Repositories.RemoveAll(item => item.Id == repositoryId));
         _scheduler?.Cancel(repositoryId);
+        _releaseScheduler?.Cancel(repositoryId);
         RenderRepositories();
     }
 }

@@ -35,10 +35,17 @@
 			android:inputType="text"
 			android:maxLines="1" />
 
+		<LinearLayout
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="20dp"
+			android:background="@drawable/download_section_background"
+			android:orientation="vertical"
+			android:padding="16dp">
+
 		<TextView
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
-			android:layout_marginTop="24dp"
 			android:text="@string/download_watcher_section"
 			android:textAppearance="@android:style/TextAppearance.Material.Headline" />
 
@@ -112,26 +119,60 @@
 			android:layout_height="wrap_content"
 			android:layout_marginTop="12dp"
 			android:text="@string/test_notification_button" />
+		</LinearLayout>
+
+		<LinearLayout
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="16dp"
+			android:background="@drawable/release_section_background"
+			android:orientation="vertical"
+			android:padding="16dp">
 
 		<TextView
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
-			android:layout_marginTop="24dp"
 			android:text="@string/release_watcher_section"
 			android:textAppearance="@android:style/TextAppearance.Material.Headline" />
 
-		<TextView
-			android:id="@+id/releaseSummaryText"
+		<Switch
+			android:id="@+id/releaseEnabledSwitch"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
 			android:layout_marginTop="8dp"
-			android:text="@string/release_watcher_off" />
+			android:text="@string/release_watcher_enabled" />
 
-		<TextView
+		<EditText
+			android:id="@+id/currentTagEditText"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
-			android:layout_marginTop="4dp"
-			android:text="@string/release_watcher_future_message" />
+			android:layout_marginTop="6dp"
+			android:hint="@string/current_tag_hint"
+			android:inputType="text"
+			android:maxLines="1" />
+
+		<Spinner
+			android:id="@+id/releaseIntervalSpinner"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="6dp" />
+		</LinearLayout>
+
+		<EditText
+			android:id="@+id/customReleaseDaysEditText"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="6dp"
+			android:hint="@string/custom_days_hint"
+			android:inputType="number"
+			android:maxLines="1"
+			android:visibility="gone" />
+
+		<Button
+			android:id="@+id/releaseRunAtTimeButton"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="6dp" />
 
 		<Button
 			android:id="@+id/saveRepositoryButton"
