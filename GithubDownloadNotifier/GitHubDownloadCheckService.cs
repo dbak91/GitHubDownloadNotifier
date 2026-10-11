@@ -19,7 +19,7 @@ public class GitHubDownloadCheckService : Service
     private const string LastTotalPrefix = "last_total_";
     private const int ForegroundNotificationId = 1001;
     private const int UpdateNotificationId = 1002;
-    private const string StatusChannelId = "status_channel";
+    private const string StatusChannelId = "status_channel_silent_v2";
     private const string UpdateChannelId = "update_channel";
 
     private CancellationTokenSource? _cancellationTokenSource;
@@ -171,10 +171,15 @@ public class GitHubDownloadCheckService : Service
             return;
         }
 
-        var statusChannel = new NotificationChannel(StatusChannelId, "Service Status", NotificationImportance.Low)
+        var statusChannel = new NotificationChannel(StatusChannelId, "Background monitoring", NotificationImportance.Min)
         {
-            Description = "Foreground service status"
+            Description = "Required Android foreground service status"
         };
+        statusChannel.SetSound(null, null);
+        statusChannel.EnableVibration(false);
+        statusChannel.EnableLights(false);
+        statusChannel.SetShowBadge(false);
+        statusChannel.LockscreenVisibility = NotificationVisibility.Secret;
 
         var updateChannel = new NotificationChannel(UpdateChannelId, "Download Updates", NotificationImportance.Default)
         {
@@ -205,6 +210,10 @@ public class GitHubDownloadCheckService : Service
             .SetSmallIcon(Resource.Mipmap.appicon)
             .SetContentIntent(pendingIntent)
             .SetOngoing(true)
+            .SetCategory(Notification.CategoryService)
+            .SetShowWhen(false)
+            .SetOnlyAlertOnce(true)
+            .SetPriority((int)NotificationPriority.Min)
             .Build();
     }
 
