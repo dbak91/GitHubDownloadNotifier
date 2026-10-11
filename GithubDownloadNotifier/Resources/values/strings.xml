@@ -69,5 +69,7 @@
     <string name="log_file_required_message">Choose a log file before enabling logging.</string>
     <string name="log_fields_required_message">Choose at least one statistic to log.</string>
     <string name="log_fields_title">Logged statistics</string>
+    <string name="api_budget_exceeded_title">Scheduled API limit exceeded</string>
+    <string name="api_budget_exceeded_message">These settings could schedule up to %1$d GitHub requests in one hour. The app allows at most %2$d scheduled requests per hour. Increase one or more intervals or disable a watcher. Test now is not included.</string>
     <string name="save_repository_button">Save repository</string>
 </resources>

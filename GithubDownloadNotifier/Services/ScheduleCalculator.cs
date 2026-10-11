@@ -16,7 +16,13 @@ public static class ScheduleCalculator
 
         if (schedule.Unit == ScheduleUnit.Minutes)
         {
-            return nowUtc.AddMinutes(Math.Max(15, schedule.Amount));
+            var interval = TimeSpan.FromMinutes(Math.Max(15, schedule.Amount));
+            var next = schedule.LastScheduledUtc?.Add(interval) ?? nowUtc.Add(interval);
+            while (next <= nowUtc)
+            {
+                next = next.Add(interval);
+            }
+            return next;
         }
 
         var localNow = TimeZoneInfo.ConvertTime(nowUtc, timeZone);
