@@ -27,6 +27,18 @@ public sealed class ScheduleCalculatorTests
     }
 
     [Fact]
+    public void DaysContinueFromLastScheduledOccurrence()
+    {
+        var now = new DateTimeOffset(2026, 10, 15, 10, 0, 0, TimeSpan.Zero);
+        var schedule = WatchSchedule.Days(3, new TimeSpan(8, 15, 0));
+        schedule.LastScheduledUtc = new DateTimeOffset(2026, 10, 11, 8, 15, 0, TimeSpan.Zero);
+
+        var next = ScheduleCalculator.GetNextRun(now, schedule, TimeZoneInfo.Utc);
+
+        Assert.Equal(new DateTimeOffset(2026, 10, 17, 8, 15, 0, TimeSpan.Zero), next);
+    }
+
+    [Fact]
     public void MonthsClampAnchorToLastDay()
     {
         var now = new DateTimeOffset(2026, 1, 31, 9, 0, 0, TimeSpan.Zero);

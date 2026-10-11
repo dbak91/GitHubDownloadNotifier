@@ -11,20 +11,52 @@ namespace GithubDownloadNotifier;
 public sealed class GitHubDownloadWorker(Context context, WorkerParameters workerParameters) : Worker(context, workerParameters)
 {
     public const string RepositoryIdInputKey = "repository_id";
+    public const string ScheduledRunUtcInputKey = "scheduled_run_utc";
     private const string UpdateChannelId = "update_channel";
 
     public override Result DoWork()
     {
+        var repositoryId = InputData.GetString(RepositoryIdInputKey);
         try
         {
-            return CheckDownloadsAsync().GetAwaiter().GetResult()
-                ? Result.InvokeSuccess()
-                : Result.InvokeRetry();
+            _ = CheckDownloadsAsync().GetAwaiter().GetResult();
         }
         catch
         {
-            return Result.InvokeRetry();
+            // The next configured occurrence is still scheduled below.
         }
+        finally
+        {
+            if (!string.IsNullOrWhiteSpace(repositoryId))
+            {
+                RecordScheduledOccurrence(repositoryId);
+                new DownloadWorkScheduler(ApplicationContext).ScheduleNext(repositoryId);
+            }
+        }
+
+        return Result.InvokeSuccess();
+    }
+
+    private void RecordScheduledOccurrence(string repositoryId)
+    {
+        var scheduledMilliseconds = InputData.GetLong(ScheduledRunUtcInputKey, 0);
+        var scheduledUtc = scheduledMilliseconds > 0
+            ? DateTimeOffset.FromUnixTimeMilliseconds(scheduledMilliseconds)
+            : DateTimeOffset.UtcNow;
+        var storageDirectory = ApplicationContext.FilesDir?.AbsolutePath;
+        if (string.IsNullOrWhiteSpace(storageDirectory))
+        {
+            return;
+        }
+
+        new WatcherStore(storageDirectory).Update(document =>
+        {
+            var repository = document.Repositories.FirstOrDefault(item => item.Id == repositoryId);
+            if (repository is not null)
+            {
+                repository.Download.Schedule.LastScheduledUtc = scheduledUtc;
+            }
+        });
     }
 
     private async Task<bool> CheckDownloadsAsync()

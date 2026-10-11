@@ -12,7 +12,10 @@
     <string name="interval_12_hours">12 hours</string>
     <string name="interval_1_day">1 day</string>
     <string name="interval_custom">Custom</string>
-    <string name="custom_interval_hint">Custom interval in minutes</string>
+    <string name="custom_interval_hint">Interval</string>
+    <string name="interval_unit_minutes">Minutes</string>
+    <string name="interval_unit_days">Days</string>
+    <string name="run_at_time">Run at %1$s</string>
     <string name="release_scope_all">All Releases</string>
     <string name="release_scope_latest">Latest Only</string>
     <string name="notify_always">Always show each check</string>
@@ -24,7 +27,7 @@
     <string name="service_stopped">Service stopped</string>
     <string name="settings_saved">Settings saved</string>
     <string name="repo_required_message">Repository owner and name are required.</string>
-    <string name="interval_invalid_message">Enter an interval of at least 15 minutes.</string>
+    <string name="interval_invalid_message">Enter at least 15 minutes or 1 day.</string>
     <string name="notification_permission_required">Notification permission is required to send alerts.</string>
     <string name="battery_warning_title">Battery optimization may delay checks</string>
     <string name="battery_warning_message">Android may delay scheduled GitHub checks to save battery. You can review battery optimization settings for this app, but checks are never guaranteed to run at an exact time.</string>

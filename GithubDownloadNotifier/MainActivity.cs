@@ -102,11 +102,19 @@ public sealed class MainActivity : Activity
     private static string BuildSummary(RepositoryWatchConfiguration repository)
     {
         var download = repository.Download.Enabled
-            ? $"Downloads: on, every {repository.Download.Schedule.Amount} min"
+            ? $"Downloads: on, {FormatSchedule(repository.Download.Schedule)}"
             : "Downloads: off";
         var release = repository.Release.Enabled ? "Releases: on" : "Releases: off";
         return $"{download}  •  {release}";
     }
+
+    private static string FormatSchedule(WatchSchedule schedule)
+        => schedule.Unit switch
+        {
+            ScheduleUnit.Days => $"every {schedule.Amount} {(schedule.Amount == 1 ? "day" : "days")} at " +
+                DateTime.Today.AddHours(schedule.RunAtHour).AddMinutes(schedule.RunAtMinute).ToString("t"),
+            _ => $"every {schedule.Amount} min"
+        };
 
     private void OpenEditor(string? repositoryId)
     {
