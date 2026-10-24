@@ -61,12 +61,14 @@ WorkManager runs checks in the background without a persistent monitoring notifi
 
 ## Test Now
 
-**Test now** is available while creating or editing a repository and on every repository in the dashboard. It immediately queries GitHub and sends a notification containing:
+**Test now** in the create/edit screen immediately queries GitHub and sends a notification containing:
 
 - The current download total for the selected release scope.
 - The difference from the previous stored total.
 
-The test also updates the stored comparison baseline.
+The editor test also updates the stored comparison baseline.
+
+Each repository in the dashboard has a **Test** button alongside **Edit** and **Delete**. It queries the configured release scope and displays the current total in a toast. The dashboard test does not send a notification or update the stored comparison baseline.
 
 ## Android permissions
 
