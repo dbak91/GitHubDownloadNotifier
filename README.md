@@ -115,6 +115,8 @@ Published APK files are written under:
 Release builds optionally import `GithubDownloadNotifier/release-signing/GithubDownloadNotifier.signing.props`. This local file configures `AndroidKeyStore`, `AndroidSigningKeyStore`, `AndroidSigningKeyAlias`, `AndroidSigningKeyPass`, and `AndroidSigningStorePass`. The signing directory and keystores are excluded from Git. Back up the keystore and signing credentials securely; future updates must use the same key.
 
 Version 5.0 introduces a permanent release signing key. Version 4.0 used a different debug certificate, so it must be uninstalled before installing version 5.0. Record your repository settings first: uninstalling can erase app data. Future releases using the permanent key can update version 5.0 normally.
+Version 5.1 is intentionally signed with this PC's Android debug key. Its certificate differs from both V4.0 and V5.0, so those versions must be uninstalled first. Record settings before uninstalling. This debug signing choice does not establish whether Play Protect will accept the APK.
+
 ## License
 
 Copyright (c) 2026 David Baker.
