@@ -1,23 +1,17 @@
-using Android;
 using Android.App;
 using Android.Content;
-using Android.Content.PM;
 using Android.OS;
 using Android.Views;
 using Android.Widget;
 using AndroidX.Work;
 using GithubDownloadNotifier.Models;
 using GithubDownloadNotifier.Services;
-using System.Net.Http;
 
 namespace GithubDownloadNotifier;
 
 [Activity(Label = "@string/app_name", MainLauncher = true)]
 public sealed class MainActivity : Activity
 {
-    private const int NotificationPermissionRequestCode = 101;
-    private const string TestChannelId = "manual_test_channel";
-    private const int TestNotificationId = 2001;
     private const string LegacyPreferencesName = "github_download_notifier";
     private const string MigrationCompleteKey = "multi_repo_migration_complete";
     private const string BootPersistencePreferencesName = "boot_persistence";
@@ -27,7 +21,6 @@ public sealed class MainActivity : Activity
     private WatcherStore? _store;
     private DownloadWorkScheduler? _scheduler;
     private ReleaseWorkScheduler? _releaseScheduler;
-    private RepositoryWatchConfiguration? _testRepositoryAfterPermission;
 
     protected override void OnCreate(Bundle? savedInstanceState)
     {
@@ -114,111 +107,8 @@ public sealed class MainActivity : Activity
             view.FindViewById<TextView>(Resource.Id.repositorySummaryText)!.Text = BuildSummary(repository);
             view.FindViewById<Button>(Resource.Id.editRepositoryButton)!.Click += (_, _) => OpenEditor(repository.Id);
             view.FindViewById<Button>(Resource.Id.deleteRepositoryButton)!.Click += (_, _) => ConfirmDelete(repository);
-            view.FindViewById<Button>(Resource.Id.testRepositoryButton)!.Click += async (_, _) =>
-                await BeginTestAsync(repository);
             _repositoryContainer.AddView(view);
         }
-    }
-
-    private async Task BeginTestAsync(RepositoryWatchConfiguration repository)
-    {
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu &&
-            CheckSelfPermission(Manifest.Permission.PostNotifications) != Permission.Granted)
-        {
-            _testRepositoryAfterPermission = repository;
-            RequestPermissions([Manifest.Permission.PostNotifications], NotificationPermissionRequestCode);
-            return;
-        }
-
-        await SendTestNotificationAsync(repository);
-    }
-
-    private async Task SendTestNotificationAsync(RepositoryWatchConfiguration repository)
-    {
-        Toast.MakeText(this, Resource.String.test_notification_busy, ToastLength.Short)?.Show();
-        try
-        {
-            using var httpClient = new HttpClient();
-            var apiClient = new GitHubApiClient(httpClient);
-            var currentTotal = await apiClient.GetDownloadTotalAsync(
-                repository.Owner,
-                repository.Name,
-                repository.Download.Scope);
-            var comparison = repository.Download.LastDownloadTotal.HasValue
-                ? currentTotal - repository.Download.LastDownloadTotal.Value
-                : (int?)null;
-            repository.Download.LastDownloadTotal = currentTotal;
-            _store?.Update(document =>
-            {
-                var saved = document.Repositories.FirstOrDefault(item => item.Id == repository.Id);
-                if (saved is not null)
-                {
-                    saved.Download.LastDownloadTotal = currentTotal;
-                }
-            });
-
-            EnsureTestChannel();
-            var message = comparison switch
-            {
-                > 0 => $"{currentTotal} total downloads (+{comparison})",
-                0 => $"{currentTotal} total downloads (no change)",
-                < 0 => $"{currentTotal} total downloads ({comparison})",
-                _ => $"{currentTotal} total downloads (first comparison)"
-            };
-            var builder = Build.VERSION.SdkInt >= BuildVersionCodes.O
-                ? new Notification.Builder(this, TestChannelId)
-                : new Notification.Builder(this);
-            var notification = builder
-                .SetContentTitle($"{repository.Owner}/{repository.Name}")
-                .SetContentText(message)
-                .SetSmallIcon(Resource.Mipmap.appicon)
-                .SetAutoCancel(true)
-                .Build();
-            ((NotificationManager?)GetSystemService(NotificationService))?.Notify(TestNotificationId, notification);
-        }
-        catch
-        {
-            Toast.MakeText(this, Resource.String.test_notification_error, ToastLength.Short)?.Show();
-        }
-    }
-
-    public override void OnRequestPermissionsResult(
-        int requestCode,
-        string[]? permissions,
-        Permission[]? grantResults)
-    {
-        base.OnRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode != NotificationPermissionRequestCode)
-        {
-            return;
-        }
-
-        var repository = _testRepositoryAfterPermission;
-        _testRepositoryAfterPermission = null;
-        if (grantResults is not { Length: > 0 } || grantResults[0] != Permission.Granted)
-        {
-            Toast.MakeText(this, Resource.String.notification_permission_required, ToastLength.Short)?.Show();
-            return;
-        }
-
-        if (repository is not null)
-        {
-            _ = SendTestNotificationAsync(repository);
-        }
-    }
-
-    private void EnsureTestChannel()
-    {
-        if (Build.VERSION.SdkInt < BuildVersionCodes.O)
-        {
-            return;
-        }
-
-        var manager = (NotificationManager?)GetSystemService(NotificationService);
-        manager?.CreateNotificationChannel(new NotificationChannel(
-            TestChannelId,
-            GetString(Resource.String.test_notification_channel_name),
-            NotificationImportance.Default));
     }
 
     private static string BuildSummary(RepositoryWatchConfiguration repository)
