@@ -107,6 +107,7 @@ public sealed class MainActivity : Activity
             view.FindViewById<TextView>(Resource.Id.repositorySummaryText)!.Text = BuildSummary(repository);
             view.FindViewById<Button>(Resource.Id.editRepositoryButton)!.Click += (_, _) => OpenEditor(repository.Id);
             view.FindViewById<Button>(Resource.Id.deleteRepositoryButton)!.Click += (_, _) => ConfirmDelete(repository);
+            view.FindViewById<Button>(Resource.Id.testRepositoryButton)!.Click += async (_, _) => await TestRepositoryAsync(repository);
             _repositoryContainer.AddView(view);
         }
     }
@@ -151,6 +152,25 @@ public sealed class MainActivity : Activity
             .SetPositiveButton(Resource.String.delete_button, (_, _) => DeleteRepository(repository.Id))
             .SetNegativeButton(Android.Resource.String.Cancel, (_, _) => { })
             .Show();
+    }
+
+    private async Task TestRepositoryAsync(RepositoryWatchConfiguration repository)
+    {
+        var name = $"{repository.Owner}/{repository.Name}";
+        Toast.MakeText(this, Resource.String.test_notification_busy, ToastLength.Short)?.Show();
+        try
+        {
+            using var httpClient = new HttpClient();
+            var total = await new GitHubApiClient(httpClient).GetDownloadTotalAsync(
+                repository.Owner,
+                repository.Name,
+                repository.Download.Scope);
+            Toast.MakeText(this, GetString(Resource.String.test_repository_result, name, total), ToastLength.Long)?.Show();
+        }
+        catch
+        {
+            Toast.MakeText(this, Resource.String.test_notification_error, ToastLength.Short)?.Show();
+        }
     }
 
     private void DeleteRepository(string repositoryId)
