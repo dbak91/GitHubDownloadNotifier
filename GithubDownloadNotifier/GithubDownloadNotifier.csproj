@@ -6,8 +6,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationId>com.companyname.GithubDownloadNotifier</ApplicationId>
-    <ApplicationVersion>1</ApplicationVersion>
-    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>5</ApplicationVersion>
+    <ApplicationDisplayVersion>5.0</ApplicationDisplayVersion>
     <!--
       Enables trim analyzers and full trimming during Release mode.
       To learn more, see: https://learn.microsoft.com/dotnet/core/deploying/trimming/trimming-options#trimming-granularity
@@ -17,4 +17,6 @@
   <ItemGroup>
     <PackageReference Include="Xamarin.AndroidX.Work.Runtime" Version="2.11.2.1" />
   </ItemGroup>
+  <Import Project="release-signing\GithubDownloadNotifier.signing.props"
+          Condition="'$(Configuration)' == 'Release' And Exists('release-signing\GithubDownloadNotifier.signing.props')" />
 </Project>

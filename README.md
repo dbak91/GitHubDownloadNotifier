@@ -61,7 +61,7 @@ WorkManager runs checks in the background without a persistent monitoring notifi
 
 ## Test Now
 
-**Test now** immediately queries GitHub and sends a notification containing:
+**Test now** is available while creating or editing a repository and on every repository in the dashboard. It immediately queries GitHub and sends a notification containing:
 
 - The current download total for the selected release scope.
 - The difference from the previous stored total.
@@ -108,6 +108,11 @@ Published APK files are written under:
 
 `GithubDownloadNotifier\bin\Release\net10.0-android\publish`
 
+### Release signing
+
+Release builds optionally import `GithubDownloadNotifier/release-signing/GithubDownloadNotifier.signing.props`. This local file configures `AndroidKeyStore`, `AndroidSigningKeyStore`, `AndroidSigningKeyAlias`, `AndroidSigningKeyPass`, and `AndroidSigningStorePass`. The signing directory and keystores are excluded from Git. Back up the keystore and signing credentials securely; future updates must use the same key.
+
+Version 5.0 introduces a permanent release signing key. Version 4.0 used a different debug certificate, so it must be uninstalled before installing version 5.0. Record your repository settings first: uninstalling can erase app data. Future releases using the permanent key can update version 5.0 normally.
 ## License
 
 Copyright (c) 2026 David Baker.
