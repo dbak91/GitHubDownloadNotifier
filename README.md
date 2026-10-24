@@ -103,20 +103,20 @@ dotnet build GithubDownloadNotifier.slnx
 Publish APK files:
 
 ```powershell
-dotnet publish GithubDownloadNotifier\GithubDownloadNotifier.csproj -c Release -f net10.0-android /p:AndroidPackageFormat=apk
+dotnet publish GithubDownloadNotifier\GithubDownloadNotifier.csproj -c Release -p:PublishProfile=FolderProfile
 ```
 
 Published APK files are written under:
 
-`GithubDownloadNotifier\bin\Release\net10.0-android\publish`
+`GithubDownloadNotifier\bin\Release\net10.0-android36.0\publish\android-arm64\`
 
 ### Release signing
 
-Release builds optionally import `GithubDownloadNotifier/release-signing/GithubDownloadNotifier.signing.props`. This local file configures `AndroidKeyStore`, `AndroidSigningKeyStore`, `AndroidSigningKeyAlias`, `AndroidSigningKeyPass`, and `AndroidSigningStorePass`. The signing directory and keystores are excluded from Git. Back up the keystore and signing credentials securely; future updates must use the same key.
+Version 5.2 uses the same FolderProfile workflow as SortNewest, FilesNewest, and AutoSortNewest: Release configuration, Android API 36, ARM64, a self-contained trimmed APK, local release signing, and APK signature verification. In Visual Studio, select Release, right-click the app project, choose Publish, and select FolderProfile.
 
-Version 5.0 introduces a permanent release signing key. Version 4.0 used a different debug certificate, so it must be uninstalled before installing version 5.0. Record your repository settings first: uninstalling can erase app data. Future releases using the permanent key can update version 5.0 normally.
-Version 5.1 is intentionally signed with this PC's Android debug key. Its certificate differs from both V4.0 and V5.0, so those versions must be uninstalled first. Record settings before uninstalling. This debug signing choice does not establish whether Play Protect will accept the APK.
+Release builds import `GithubDownloadNotifier/release-signing/GithubDownloadNotifier.signing.props`. It configures `AndroidKeyStore`, `AndroidSigningKeyStore`, `AndroidSigningKeyAlias`, `AndroidSigningKeyPass`, and `AndroidSigningStorePass`. The profile fails if release signing is missing, and verifies the signed APK. The signing directory and keystores are excluded from Git. Back up the keystore and signing credentials securely; future updates must use the same key.
 
+Version 5.2 reuses the permanent release key created for V5.0. It can update V5.0 signed with that key. V4.0 and V5.1 used different debug certificates and must be uninstalled first; record repository settings before uninstalling because uninstalling can erase app data. The signing/build workflow does not establish whether Google Play Protect will accept the APK.
 ## License
 
 Copyright (c) 2026 David Baker.
